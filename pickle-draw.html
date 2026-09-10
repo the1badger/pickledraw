@@ -270,12 +270,12 @@
   @keyframes pulse{50%{background:#2a1008}}
   @media (prefers-reduced-motion:reduce){.timer.over{animation:none;background:#2a1008}}
   .tround{font-family:var(--disp);font-weight:800;font-size:1.1rem;color:#9aa08e;margin-bottom:4px}
-  .tclock{font-family:var(--disp);font-weight:800;font-size:clamp(4.6rem,26vw,11rem);
+  .tclock{font-family:var(--disp);font-weight:800;font-size:clamp(4rem,21vw,8.4rem);
     line-height:.95;letter-spacing:-.03em;color:var(--lime);
-    font-variant-numeric:tabular-nums;font-feature-settings:"tnum";margin:6px 0}
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum";margin:2px 0}
   .tclock.warn{color:#FFC24B}
   .tclock.over{color:var(--clay)}
-  .tstate{font-size:1rem;color:#9aa08e;font-weight:600;margin-bottom:22px;min-height:1.4em}
+  .tstate{font-size:1rem;color:#9aa08e;font-weight:600;margin-bottom:16px;min-height:1.4em}
   .tctrl{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
   .tbtn{font-family:var(--sans);font-weight:700;font-size:1rem;
     background:#1b1d18;color:#fff;border:2px solid #3a3d34;border-radius:12px;
@@ -284,9 +284,13 @@
   .tbtn.big{background:var(--lime);color:var(--ink);border-color:var(--lime);min-width:160px;font-size:1.1rem}
   .tbtn.go{background:var(--teal);border-color:var(--teal-2)}
   .tbtn.ghost{background:transparent;color:#9aa08e}
-  .tdraw{font-size:.9rem;color:#c8cbbe;max-width:520px;margin:6px auto 18px;text-align:left}
-  .tdraw div{padding:3px 0;border-bottom:1px solid #23261f}
-  .tdraw .bye{color:#e0906f}
+  .tdraw{width:100%;max-width:640px;margin:14px auto 18px;text-align:left}
+  .tc{display:flex;gap:14px;align-items:baseline;padding:10px 2px;border-bottom:1px solid #23261f}
+  .tc:last-child{border-bottom:none}
+  .tcn{flex:none;width:84px;font-size:.84rem;color:#8d9382;font-weight:600}
+  .tcp{flex:1;font-size:clamp(1.2rem,4.8vw,1.6rem);font-weight:700;color:#fff;line-height:1.25}
+  .tcp i{font-style:normal;color:#8d9382;font-weight:600;font-size:.72em;margin:0 7px}
+  .tc.bye .tcp{color:#eda183;font-size:clamp(1.05rem,3.9vw,1.3rem);font-weight:600}
 
   @media (max-width:560px){
     .grid2{grid-template-columns:1fr}
@@ -330,10 +334,12 @@
     <div class="card">
       <label class="fld">
         <span class="lbl">Players <small id="pcount">0 players</small></span>
-        <textarea id="players" rows="6" placeholder="One name per line&#10;Alex&#10;Bri 3.5&#10;Cam&#10;Dana 4.0"></textarea>
+        <textarea id="players" rows="6" placeholder="One name per line&#10;Alex Nguyen&#10;Bri Taylor 3.5&#10;Cam&#10;Dana Okafor 4.0"></textarea>
       </label>
-      <p class="hint">Put a level after a name if you use them, like <b>Bri 3.5</b>. Levels are
-        optional and only matter if you pick one of the level-aware mixes below.
+      <p class="hint">Full names are fine — the courts show first names only, and add a
+        surname initial if two people share one. Put a level after a name if you use them,
+        like <b>Bri Taylor 3.5</b>. Levels are optional and only matter if you pick one of
+        the level-aware mixes below.
         <button class="linklike" id="loadExample" type="button">Load an example list</button>
       </p>
 
@@ -441,7 +447,9 @@
         <span class="chev" aria-hidden="true">&#9662;</span>
       </button>
       <div id="rosterWrap" hidden>
-        <p class="caption">Tap a player when they need a rest, or when they head home.
+        <p class="caption">Full names are listed here; the courts show first names only,
+          adding a surname initial when two people share one.
+          Tap a player when they need a rest, or when they head home.
           A rest brings them back on by itself after a round or two; going home takes them
           out for good. Tap anyone who is off to put them straight back on. Finished rounds
           stay put — a round locks when you move past it with the arrow, or when you start
@@ -483,10 +491,6 @@
   <div class="tstate" id="tState"></div>
   <div class="tctrl">
     <button class="tbtn big" id="tStart">Start</button>
-  </div>
-  <div class="tctrl">
-    <button class="tbtn" id="tMinus">&minus;1 min</button>
-    <button class="tbtn" id="tPlus">+1 min</button>
     <button class="tbtn" id="tReset">Reset</button>
   </div>
   <div class="tdraw" id="tDraw"></div>
@@ -974,17 +978,50 @@ function statusOf(i){
   return 'on';
 }
 function nm(i){return S.players[i]?S.players[i].name:'?';}
+/* Short names for the courts: first name only, unless two people share one,
+   in which case that group grows a surname initial (or more) until each is
+   distinct. If it can't be made distinct, the whole group keeps full names. */
+function refreshDisplayNames(){
+  const groups={};
+  S.players.forEach(function(p,i){
+    const k=p.name.trim().split(/\s+/)[0].toLowerCase();
+    (groups[k]=groups[k]||[]).push(i);
+  });
+  Object.keys(groups).forEach(function(k){
+    const idx=groups[k];
+    const toks=idx.map(function(i){return S.players[i].name.trim().split(/\s+/);});
+    if(idx.length===1){S.players[idx[0]].disp=toks[0][0];return;}
+    for(let n=1;n<=12;n++){
+      const seen={},list=[];let usable=true;
+      idx.forEach(function(i,j){
+        const t=toks[j],sur=t.length>1?t[t.length-1]:'';
+        if(!sur||/^\(\d+\)$/.test(sur)){usable=false;return;}
+        const dn=t[0]+' '+sur.slice(0,n);
+        list.push([i,dn]);seen[dn.toLowerCase()]=(seen[dn.toLowerCase()]||0)+1;
+      });
+      if(!usable)break;
+      const distinct=list.every(function(e){return seen[e[1].toLowerCase()]===1;});
+      if(distinct){list.forEach(function(e){S.players[e[0]].disp=e[1];});return;}
+      if(n>=Math.max.apply(null,toks.map(function(t){return t[t.length-1].length;})))break;
+    }
+    idx.forEach(function(i){S.players[i].disp=S.players[i].name;});
+  });
+}
+function dn(i){
+  const p=S.players[i];
+  return p?(p.disp||p.name):'?';
+}
 function rtLabel(i){
   const p=S.players[i];
   return (p&&typeof p.rating==='number')?'<span class="rt">'+p.rating+'</span>':'';
 }
 function teamNames(arr){
-  if(arr.length===1)return '<span class="names">'+esc(nm(arr[0]))+rtLabel(arr[0])+'</span>';
+  if(arr.length===1)return '<span class="names">'+esc(dn(arr[0]))+rtLabel(arr[0])+'</span>';
   const lk=lockMapNow()[arr[0]]===arr[1]?'<span class="lk" title="Training pair">&#128279;</span>':'';
-  return '<span class="names">'+esc(nm(arr[0]))+rtLabel(arr[0])+
-    '<span class="amp">&amp;</span>'+esc(nm(arr[1]))+rtLabel(arr[1])+lk+'</span>';
+  return '<span class="names">'+esc(dn(arr[0]))+rtLabel(arr[0])+
+    '<span class="amp">&amp;</span>'+esc(dn(arr[1]))+rtLabel(arr[1])+lk+'</span>';
 }
-function plain(arr){return arr.map(function(i){return esc(nm(i));}).join(' &amp; ');}
+function plain(arr){return arr.map(function(i){return esc(dn(i));}).join(' &amp; ');}
 
 /* redraw everything from the frozen boundary onwards */
 function rebuildFromLock(){
@@ -1004,6 +1041,7 @@ function rebuildAndTell(){
    8. RENDER
    ============================================================ */
 function renderDraw(){
+  refreshDisplayNames();
   tDrawStamp='';
   $('roundView').style.display=S.view==='round'?'':'none';
   $('allView').style.display=S.view==='all'?'':'none';
@@ -1068,7 +1106,7 @@ function renderRound(){
   h+='</div>';
   if(rd.byes.length){
     h+='<div class="byes"><div class="bt">Sitting out this round</div><div class="chips">';
-    rd.byes.forEach(function(b){h+='<span class="chip">'+esc(nm(b))+'</span>';});
+    rd.byes.forEach(function(b){h+='<span class="chip">'+esc(dn(b))+'</span>';});
     h+='</div></div>';
   }
   body.innerHTML=h;
@@ -1086,7 +1124,7 @@ function renderAll(){
     });
     if(rd.byes.length){
       h+='<div class="mc bye"><div class="mch">Sitting out</div><div class="mr">'+
-        rd.byes.map(function(b){return esc(nm(b));}).join(', ')+'</div></div>';
+        rd.byes.map(function(b){return esc(dn(b));}).join(', ')+'</div></div>';
     }
     h+='</div></div>';
   });
@@ -1445,12 +1483,6 @@ function timerPause(){
   wakeOff();
   paintTimer();
 }
-function timerAdjust(deltaMin){
-  const d=deltaMin*60000;
-  if(T.running){T.endsAt+=d;if(T.endsAt-Date.now()>60000){T.warned=false;T.over=false;}}
-  else{T.remain=Math.max(0,T.remain+d);}
-  paintTimer();
-}
 function nowRemain(){return T.running?(T.endsAt-Date.now()):T.remain;}
 
 let tDrawStamp='';
@@ -1472,10 +1504,11 @@ function paintTimer(){
     let h='';
     if(rd){
       rd.courts.forEach(function(ct,k){
-        h+='<div>Court '+(k+1)+': '+plain(ct.teamA)+' v '+plain(ct.teamB)+'</div>';
+        h+='<div class="tc"><span class="tcn">Court '+(k+1)+'</span>'+
+           '<span class="tcp">'+plain(ct.teamA)+'<i>v</i>'+plain(ct.teamB)+'</span></div>';
       });
-      if(rd.byes.length)h+='<div class="bye">Sitting out: '+
-        rd.byes.map(function(b){return esc(nm(b));}).join(', ')+'</div>';
+      if(rd.byes.length)h+='<div class="tc bye"><span class="tcn">Sitting out</span>'+
+        '<span class="tcp">'+rd.byes.map(function(b){return esc(dn(b));}).join(', ')+'</span></div>';
     }
     $('tDraw').innerHTML=h;
   }
@@ -1521,8 +1554,6 @@ $('tStart').addEventListener('click',function(){
     timerStart();
   }
 });
-$('tPlus').addEventListener('click',function(){timerAdjust(1);});
-$('tMinus').addEventListener('click',function(){timerAdjust(-1);});
 $('tReset').addEventListener('click',function(){
   T.round=S.current;timerReset();
 });
