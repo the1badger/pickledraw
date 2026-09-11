@@ -141,6 +141,8 @@
   .pick.on .box{background:var(--lime)}
   .pick.off{color:var(--ink-soft)}
   .picksub{font-size:.82rem;color:var(--ink-soft);font-weight:600;padding:10px 10px 4px}
+  .pick .nm{flex:1}
+  .pick .dup{font-size:.74rem;font-weight:700;color:var(--clay);white-space:nowrap}
 
   /* ---------- draw header ---------- */
   .drawbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -374,7 +376,8 @@
       <p class="hint">Full names are fine — the courts show first names only, and add a
         surname initial if two people share one. Put a level after a name if you use them,
         like <b>Bri Taylor 3.5</b>. Levels are optional and only matter if you pick one of
-        the level-aware mixes below.
+        the level-aware mixes below. If the list needs two screenshots, read them both in
+        — anyone who appears twice is flagged so they can't be added again.
         <button class="linklike" id="loadExample" type="button">Load an example list</button>
       </p>
 
@@ -1085,6 +1088,31 @@ function cleanLine(raw){
   }
   return (t+(level?' '+level:'')).trim();
 }
+/* ---------------------------------------------------------------
+   Wording that Opensports puts on the page which is never a person.
+   These are scrubbed out of every line before anything else happens,
+   and they never appear in the review list at all. Case does not
+   matter, and neither does the punctuation between the words, so
+   "Check-in", "CHECK IN" and "Checkin" are all the same thing.
+   Add a phrase to this list to have it ignored too.
+   --------------------------------------------------------------- */
+const OCR_DROP=['check in','bbpc member paddle','bbpc member','registration option',
+  'registration options','no shows','no show','total','totals','display settings',
+  'attendee waitlist','attendee list','waitlist'];
+const OCR_DROP_RE=OCR_DROP.map(function(phrase){
+  const body=phrase.split(' ').map(function(wd){
+    return wd.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  }).join('[^a-zA-Z0-9]*');
+  return new RegExp('\\b'+body+'\\b','gi');
+});
+function stripDropPhrases(s){
+  let t=String(s||'');
+  for(let i=0;i<OCR_DROP_RE.length;i++){
+    OCR_DROP_RE[i].lastIndex=0;
+    t=t.replace(OCR_DROP_RE[i],' ');
+  }
+  return t;
+}
 const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
 /* lower-case joining words that legitimately sit inside a name */
 const NAME_BITS={van:1,von:1,de:1,del:1,della:1,di:1,da:1,das:1,du:1,dos:1,la:1,le:1,
@@ -1116,7 +1144,9 @@ function looksLikeName(t){
 function candidateNames(text){
   const good=[],junk=[],seen={};
   String(text||'').split(/\r?\n/).forEach(function(raw){
-    const line=cleanLine(raw);
+    const pre=stripDropPhrases(raw);
+    if(!RE_LETTER.test(pre))return;      /* nothing but page furniture on this row */
+    const line=cleanLine(pre);
     if(!line)return;
     const k=line.toLowerCase();
     if(seen[k])return;
@@ -1126,24 +1156,67 @@ function candidateNames(text){
   return {good:good,junk:junk};
 }
 
+/* ---- telling one person from the same person read twice ----
+   Two screenshots of a scrolled list overlap, and the same row can come back
+   slightly differently each time, or half cut off at the edge. */
+function normName(s){
+  let t=String(s||'').toLowerCase();
+  try{t=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'');}catch(e){}
+  return t.replace(/[^a-z]/g,'');
+}
+function editDist(a,b,max){
+  if(Math.abs(a.length-b.length)>max)return max+1;
+  let prev=[],cur=[];
+  for(let j=0;j<=b.length;j++)prev[j]=j;
+  for(let i=1;i<=a.length;i++){
+    cur=[i];
+    let best=i;
+    for(let j=1;j<=b.length;j++){
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+      if(cur[j]<best)best=cur[j];
+    }
+    if(best>max)return max+1;
+    prev=cur;
+  }
+  return prev[b.length];
+}
+function sameName(a,b){
+  const x=normName(a),y=normName(b);
+  if(!x||!y)return false;
+  if(x===y)return true;
+  const s=x.length<=y.length?x:y, l=x.length<=y.length?y:x;
+  /* a row cut off at the edge loses a letter or two, not a whole surname:
+     Charlie Chandl is Charlie Chandler, Charlie Chan is somebody else */
+  if(s.length>=5&&l.indexOf(s)>-1&&s.length>=0.8*l.length)return true;
+  const aw=String(a).trim().split(/\s+/), bw=String(b).trim().split(/\s+/);
+  if((aw.length===1||bw.length===1)&&normName(aw[0])===normName(bw[0])&&normName(aw[0]).length>=3)
+    return true;                                      /* surname missing on one of them */
+  /* one letter read differently — but never the first, because that is what
+     tells Bob Smith and Rob Smith apart */
+  if(s.length>=6&&x.charAt(0)===y.charAt(0)&&editDist(x,y,1)<=1)return true;
+  return false;
+}
+function findDup(name,list){
+  for(let i=0;i<list.length;i++)if(sameName(name,list[i]))return list[i];
+  return null;
+}
+
 function pickNamesBox(good,junk){
   return new Promise(function(resolve){
     const back=document.createElement('div');back.className='dlgback';
     const box=document.createElement('div');box.className='dlg';
     const h3=document.createElement('h3');
-    h3.textContent=good.length?'Found '+good.length+' name'+(good.length===1?'':'s'):'No names found';
     const p=document.createElement('p');
-    p.textContent=good.length
-      ? 'Untick anyone who should not be there. You can fix spellings in the box afterwards.'
-      : 'Nothing here looked like a name. Tick anything below that should be added.';
     box.appendChild(h3);box.appendChild(p);
     const list=document.createElement('div');list.className='picklist';
     const state=[];
-    function row(text,on){
+    function row(text,on,note){
       const el=document.createElement('div');
       el.className='pick '+(on?'on':'off');
-      el.innerHTML='<span class="box">'+(on?'\u2713':'')+'</span><span></span>';
-      el.lastChild.textContent=text;
+      el.innerHTML='<span class="box">'+(on?'\u2713':'')+'</span><span class="nm"></span>'+
+        (note?'<span class="dup"></span>':'');
+      el.querySelector('.nm').textContent=text;
+      if(note)el.querySelector('.dup').textContent=note;
       const rec={text:text,on:on,el:el};
       el.addEventListener('click',function(){
         rec.on=!rec.on;
@@ -1152,13 +1225,33 @@ function pickNamesBox(good,junk){
       });
       state.push(rec);list.appendChild(el);
     }
-    good.forEach(function(t){row(t,true);});
+    const already=splitEntries($('players').value).map(function(s){return parseEntry(s).name;});
+    const kept=[];
+    let dups=0;
+    good.forEach(function(t){
+      const hit=findDup(t,already.concat(kept));
+      if(hit){
+        dups++;
+        row(t,false,normName(hit)===normName(t)?'already added':'looks like '+hit);
+      }else{
+        kept.push(t);row(t,true,'');
+      }
+    });
     if(junk.length){
       const sub=document.createElement('div');sub.className='picksub';
       sub.textContent='Other text that was found';
       list.appendChild(sub);
       junk.forEach(function(t){row(t,false);});
     }
+    h3.textContent=good.length
+      ? 'Found '+good.length+' name'+(good.length===1?'':'s')+
+        (dups?', '+dups+' already on your list':'')
+      : 'No names found';
+    p.textContent=good.length
+      ? (dups===good.length
+          ? 'Every one of these is already on your list. Tick any that are actually a different person.'
+          : 'Untick anyone who should not be there. You can fix spellings in the box afterwards.')
+      : 'Nothing here looked like a name. Tick anything below that should be added.';
     box.appendChild(list);
     const rowb=document.createElement('div');rowb.className='row';
     const no=document.createElement('button');no.className='btn';no.textContent='Cancel';
@@ -1212,8 +1305,7 @@ $('pasteBtn').addEventListener('click',function(){
     const found=candidateNames(txt);
     if(!found.good.length&&!found.junk.length){shotState('Nothing was pasted',true);return;}
     return pickNamesBox(found.good,found.junk).then(function(chosen){
-      if(chosen&&chosen.length)addNamesToBox(chosen);
-      else if(chosen)shotState('Nothing added');
+      if(chosen)addNamesToBox(chosen);
     });
   });
 });
@@ -1261,8 +1353,7 @@ async function runOCR(file){
     olog('kept '+found.good.length+' as names, set aside '+found.junk.length);
     shotState('');shotBar(null);
     const chosen=await pickNamesBox(found.good,found.junk);
-    if(chosen&&chosen.length)addNamesToBox(chosen);
-    else if(chosen)shotState('Nothing added');
+    if(chosen)addNamesToBox(chosen);
   }catch(err){
     shotBar(null);
     const msg=String((err&&err.message)||err);
@@ -1296,19 +1387,11 @@ function friendlyStatus(s){
 }
 function addNamesToBox(names){
   const box=$('players');
-  const have={};
-  splitEntries(box.value).forEach(function(s){have[parseEntry(s).name.toLowerCase()]=1;});
-  const fresh=names.filter(function(n){
-    const k=n.toLowerCase();
-    if(have[k])return false;
-    have[k]=1;return true;
-  });
-  if(!fresh.length){shotState('Those names are already on the list');return;}
+  if(!names.length){shotState('Nothing new to add \u2014 they were all on the list already');return;}
   const cur=box.value.replace(/\s+$/,'');
-  box.value=(cur?cur+'\n':'')+fresh.join('\n');
+  box.value=(cur?cur+'\n':'')+names.join('\n');
   updatePCount();
-  shotState('Added '+fresh.length+' name'+(fresh.length===1?'':'s')+
-    (names.length>fresh.length?', '+(names.length-fresh.length)+' already there':''));
+  shotState('Added '+names.length+' name'+(names.length===1?'':'s'));
 }
 
 /* ============================================================
