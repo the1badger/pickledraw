@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net blob:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https://cdn.jsdelivr.net blob: data:; worker-src blob:; child-src blob:; manifest-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net blob:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https://cdn.jsdelivr.net blob: data:; worker-src blob:; child-src blob:; manifest-src blob:; base-uri 'none'; form-action 'none'">
 <title>Pickle Draw</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -121,8 +121,15 @@
     text-decoration:underline;cursor:pointer;font-size:.85rem;padding:4px 0 0}
   .hint{font-size:.82rem;color:var(--ink-soft);margin-top:-10px;margin-bottom:18px}
   .shotrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 14px}
-  .shotstate{font-size:.84rem;color:var(--teal);font-weight:600}
+  .shotstate{font-size:.86rem;color:var(--teal);font-weight:600;margin:0 0 6px;min-height:1.2em}
   .shotstate.bad{color:var(--clay)}
+  .shotbar{height:8px;background:rgba(28,27,22,.12);border-radius:5px;overflow:hidden;margin-bottom:8px}
+  .shotbar span{display:block;height:100%;width:0;background:var(--teal);transition:width .2s ease}
+  .shotlogwrap{margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:baseline}
+  .shotlog{flex-basis:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.74rem;
+    line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--ink-soft);
+    background:rgba(28,27,22,.05);border:1px solid var(--line);border-radius:9px;
+    padding:10px;max-height:230px;overflow-y:auto;margin-top:6px}
   .picklist{max-height:46vh;overflow-y:auto;margin:4px 0 16px;
     border:2px solid var(--line);border-radius:12px;padding:6px}
   .pick{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
@@ -354,8 +361,15 @@
       </label>
       <div class="shotrow">
         <button class="btn" id="shotBtn" type="button">Read names from a screenshot</button>
+        <button class="btn" id="pasteBtn" type="button">Paste a list of names</button>
         <input type="file" id="shotFile" accept="image/*" hidden>
-        <span class="shotstate" id="shotState"></span>
+      </div>
+      <div class="shotstate" id="shotState"></div>
+      <div class="shotbar" id="shotBar" hidden><span id="shotBarFill"></span></div>
+      <div class="shotlogwrap" id="shotLogWrap" hidden>
+        <button class="linklike" id="shotLogToggle" type="button">Show what happened</button>
+        <button class="linklike" id="shotLogCopy" type="button" hidden>Copy this log</button>
+        <pre class="shotlog" id="shotLog" hidden></pre>
       </div>
       <p class="hint">Full names are fine — the courts show first names only, and add a
         surname initial if two people share one. Put a level after a name if you use them,
@@ -871,45 +885,208 @@ function uniqueAgainstRoster(name){
    uploaded anywhere. The engine itself is fetched the first time
    it's used and then cached, so that one step needs a connection.
    ============================================================ */
-const OCR_SRC='https://cdn.jsdelivr.net/npm/tesseract.js@v7.0.0/dist/tesseract.min.js';
+const OCR_VER='7.0.0';
+const OCR_BASE='https://cdn.jsdelivr.net/npm';
+const OCR_SRC=OCR_BASE+'/tesseract.js@v'+OCR_VER+'/dist/tesseract.min.js';
+const OCR_PATHS={
+  workerPath:OCR_BASE+'/tesseract.js@v'+OCR_VER+'/dist/worker.min.js',
+  corePath:OCR_BASE+'/tesseract.js-core@v'+OCR_VER,
+  langPath:OCR_BASE+'/@tesseract.js-data/eng/4.0.0_best_int'
+};
 let ocrLoading=null;
+
+/* --- a log the volunteer can read out, since there's no console on a tablet --- */
+const ocrLog=[];
+let ocrT0=0;
+function olog(msg){
+  const t=ocrT0?((Date.now()-ocrT0)/1000).toFixed(1)+'s':'0.0s';
+  ocrLog.push(t+'  '+msg);
+  $('shotLogWrap').hidden=false;
+  const el=$('shotLog');
+  el.textContent=ocrLog.join('\n');
+  el.scrollTop=el.scrollHeight;
+}
+$('shotLogToggle').addEventListener('click',function(){
+  const el=$('shotLog');
+  el.hidden=!el.hidden;
+  $('shotLogCopy').hidden=el.hidden;
+  $('shotLogToggle').textContent=el.hidden?'Show what happened':'Hide this';
+});
+$('shotLogCopy').addEventListener('click',function(){
+  const txt=ocrLog.join('\n');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){shotState('Log copied');},
+      function(){selectLog();});
+  }else selectLog();
+  function selectLog(){
+    const r=document.createRange();r.selectNodeContents($('shotLog'));
+    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    shotState('Log selected \u2014 hold and choose Copy');
+  }
+});
+function shotState(msg,bad){
+  $('shotState').textContent=msg||'';
+  $('shotState').classList.toggle('bad',!!bad);
+}
+function shotBar(frac){
+  if(frac==null){$('shotBar').hidden=true;return;}
+  $('shotBar').hidden=false;
+  $('shotBarFill').style.width=Math.round(Math.max(0,Math.min(1,frac))*100)+'%';
+}
+let ocrFatal=null;
+function armFatal(){
+  return new Promise(function(_,rej){ocrFatal=rej;});
+}
+function noteBackgroundError(msg){
+  if(!ocrT0)return;
+  olog('background error: '+msg);
+  if(/WebAssembly|CompileError|Content Security|unsafe-eval/i.test(msg)&&ocrFatal)
+    ocrFatal(new Error('WASMBLOCKED'));
+}
+window.addEventListener('error',function(e){
+  noteBackgroundError((e.message||'error')+(e.filename?' ['+String(e.filename).split('/').pop()+']':''));
+});
+window.addEventListener('unhandledrejection',function(e){
+  const r=e.reason;
+  noteBackgroundError(String((r&&r.message)||r));
+});
+function withTimeout(promise,ms,label){
+  let t=null;
+  return Promise.race([
+    promise.then(function(v){clearTimeout(t);return v;},function(e){clearTimeout(t);throw e;}),
+    new Promise(function(_,rej){t=setTimeout(function(){rej(new Error('TIMEOUT:'+label));},ms);})
+  ]);
+}
+
 function loadOCR(){
   if(window.Tesseract)return Promise.resolve(window.Tesseract);
   if(ocrLoading)return ocrLoading;
+  olog('fetching the text reader from cdn.jsdelivr.net');
   ocrLoading=new Promise(function(res,rej){
     const s=document.createElement('script');
     s.src=OCR_SRC;
-    s.onload=function(){window.Tesseract?res(window.Tesseract):rej(new Error('engine missing'));};
-    s.onerror=function(){ocrLoading=null;rej(new Error('offline'));};
+    s.onload=function(){
+      if(window.Tesseract){olog('text reader loaded, version '+(window.Tesseract.version||OCR_VER));res(window.Tesseract);}
+      else{olog('script loaded but no engine found on it');rej(new Error('engine missing'));}
+    };
+    s.onerror=function(){olog('the download was blocked or failed');ocrLoading=null;rej(new Error('offline'));};
     document.head.appendChild(s);
   });
   return ocrLoading;
 }
 
-/* Opensports draws a circle of initials beside each name, and the phone's
-   status bar sits above the list, so the raw text needs a clean-up. */
+/* Shrink the picture before reading it: phone screenshots are far bigger than
+   the reader needs, and this also sidesteps any format the reader dislikes. */
+function fileToCanvas(file,maxW){
+  return new Promise(function(res,rej){
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=function(){
+      const scale=Math.min(1,maxW/(img.naturalWidth||img.width||maxW));
+      const cw=Math.round((img.naturalWidth||img.width)*scale);
+      const ch=Math.round((img.naturalHeight||img.height)*scale);
+      olog('picture '+(img.naturalWidth||img.width)+'x'+(img.naturalHeight||img.height)+
+           (scale<1?' shrunk to '+cw+'x'+ch:' used as is'));
+      const c=document.createElement('canvas');
+      c.width=cw;c.height=ch;
+      c.getContext('2d').drawImage(img,0,0,cw,ch);
+      URL.revokeObjectURL(url);
+      res(c);
+    };
+    img.onerror=function(){
+      URL.revokeObjectURL(url);
+      olog('the browser could not open that picture');
+      rej(new Error('badimage'));
+    };
+    img.src=url;
+  });
+}
+
+/* Turning raw read-out into names.
+   Each row of the Opensports list has either a circle of initials or a
+   photo beside the name. A photo comes back as junk glyphs — (c), $, @)
+   and so on — and the phone's status bar sits above the whole list. So
+   rather than throwing away any line with an odd character in it, peel
+   the rubbish off the ends and judge what is left. */
+const NL='A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F\u1E00-\u1EFF';
+const RE_LETTER=new RegExp('['+NL+']');
+const RE_WORD=new RegExp('^['+NL+"][" +NL+"'.\\-]*$");
+const RE_LEAD=new RegExp('^[^'+NL+']+');
+const RE_TRAIL=new RegExp('[^'+NL+"'.]+$");
+const RE_LEVEL=/^[1-7](\.[0-9]{1,2})?$/;
+
+/* a letter misread as a digit, mid-word: Nina A1bahrani -> Nina Albahrani */
+function fixDigits(s){
+  const map={'0':'o','1':'l','5':'s','8':'B'};
+  let out='';
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(map[c]&&i>0&&i<s.length-1&&RE_LETTER.test(s[i-1])&&RE_LETTER.test(s[i+1]))out+=map[c];
+    else out+=c;
+  }
+  return out;
+}
+function tidyToken(s){
+  return fixDigits(s.replace(RE_LEAD,'').replace(RE_TRAIL,''));
+}
 function cleanLine(raw){
-  let t=String(raw||'').replace(/[\u2018\u2019]/g,"'").replace(/\s+/g,' ').trim();
-  const m=t.match(/^([A-Z]{2,3})\s+(.+)$/);
+  let t=String(raw||'').replace(/[\u2018\u2019\u02BC\u0060\u00B4]/g,"'")
+                       .replace(/[\u2010-\u2015]/g,'-')
+                       .replace(/\s+/g,' ').trim();
+  if(!t)return '';
+  if(/\S+@\S+|https?:|www\./i.test(t))return t;      /* left intact, and rejected below */
+
+  let toks=t.split(' ');
+  let level='';
+  if(toks.length>1&&RE_LEVEL.test(toks[toks.length-1]))level=toks.pop();
+  /* drop leading and trailing lumps with no letters in them at all:
+     avatar glyphs, the clock, the battery, stray brackets */
+  while(toks.length&&!RE_LETTER.test(toks[0]))toks.shift();
+  while(toks.length&&!RE_LETTER.test(toks[toks.length-1]))toks.pop();
+  if(!toks.length)return '';
+  toks=toks.map(tidyToken).filter(Boolean);
+  if(!toks.length)return '';
+
+  /* a single letter left stranded on the front is avatar debris, not an initial
+     of the name — "(c) A Al Percival" should not become "A Al Percival" */
+  if(toks.length>2&&toks[0].length===1&&toks[1].length>1&&
+     toks[0].toUpperCase()!==toks[1][0].toUpperCase())toks.shift();
+
+  t=toks.join(' ');
+  /* the circle of initials Opensports draws beside each name */
+  const m=t.match(new RegExp('^([A-Z]{2,3})\\s+(.+)$'));
   if(m){
     const rest=m[2];
     const inits=rest.split(' ').map(function(wd){return (wd[0]||'').toUpperCase();}).join('');
-    const same=inits.slice(0,m[1].length)===m[1] ||
+    const same=inits.slice(0,m[1].length)===m[1]||
                m[1].split('').every(function(c){return inits.indexOf(c)>-1;});
     if(same)t=rest;
   }
-  return t.trim();
+  return (t+(level?' '+level:'')).trim();
 }
-const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|am|pm|today|tomorrow|yesterday|organiser|organizer|host|guest|guests)\b/i;
+const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|am|pm|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
+/* lower-case joining words that legitimately sit inside a name */
+const NAME_BITS={van:1,von:1,de:1,del:1,della:1,di:1,da:1,das:1,du:1,dos:1,la:1,le:1,
+  den:1,der:1,ten:1,ter:1,op:1,bin:1,ibn:1,al:1,af:1,mac:1,y:1,e:1};
+function wordOk(wd,idx){
+  if(!RE_WORD.test(wd))return false;
+  const c=wd.charAt(0);
+  if(c!==c.toLowerCase()&&c===c.toUpperCase())return true;   /* starts with a capital */
+  if(/^[a-z]'[A-Z]/.test(wd))return true;                    /* d'Arcy, o'Brien */
+  return idx>0&&NAME_BITS[wd.toLowerCase()]===1;
+}
 function looksLikeName(t){
-  if(t.length<2||t.length>40)return false;
-  if(/[0-9]/.test(t))return false;                 /* times, battery, counts */
-  if(/[@#/\\|:()]/.test(t))return false;
-  if(OCR_CHROME.test(t))return false;
-  const words=t.split(' ');
+  const lv=t.match(/^(.*\S)\s+[1-7](\.[0-9]{1,2})?$/);
+  const core=lv?lv[1]:t;
+  if(core.length<2||core.length>40)return false;
+  if(/[0-9]/.test(core))return false;
+  if(/\S+@\S+|https?:|www\.|\.(com|org|net|au|nz|uk|io|co|info)$/i.test(core))return false;
+  if(OCR_CHROME.test(core))return false;
+  const words=core.split(' ');
   if(words.length>4)return false;
-  if(words.length===1&&(t.length<=2||t===t.toUpperCase()))return false;
-  return words.every(function(wd){return /^[A-Za-z][A-Za-z'\-.]*$/.test(wd);});
+  if(words.length===1&&(core.length<=2||core===core.toUpperCase()))return false;
+  /* names in these lists are capitalised; a lower-case scrap is read-out debris */
+  return words.every(wordOk);
 }
 function candidateNames(text){
   const good=[],junk=[],seen={};
@@ -924,7 +1101,6 @@ function candidateNames(text){
   return {good:good,junk:junk};
 }
 
-/* tick-list so the volunteer confirms before anything lands in the box */
 function pickNamesBox(good,junk){
   return new Promise(function(resolve){
     const back=document.createElement('div');back.className='dlgback';
@@ -934,7 +1110,7 @@ function pickNamesBox(good,junk){
     const p=document.createElement('p');
     p.textContent=good.length
       ? 'Untick anyone who should not be there. You can fix spellings in the box afterwards.'
-      : 'Nothing on this picture looked like a name. Tick anything below that should be added.';
+      : 'Nothing here looked like a name. Tick anything below that should be added.';
     box.appendChild(h3);box.appendChild(p);
     const list=document.createElement('div');list.className='picklist';
     const state=[];
@@ -954,7 +1130,7 @@ function pickNamesBox(good,junk){
     good.forEach(function(t){row(t,true);});
     if(junk.length){
       const sub=document.createElement('div');sub.className='picksub';
-      sub.textContent='Other text on the picture';
+      sub.textContent='Other text that was found';
       list.appendChild(sub);
       junk.forEach(function(t){row(t,false);});
     }
@@ -973,10 +1149,31 @@ function pickNamesBox(good,junk){
   });
 }
 
-function shotState(msg,bad){
-  $('shotState').textContent=msg||'';
-  $('shotState').classList.toggle('bad',!!bad);
+/* paste path — works with no connection at all */
+function pasteTextBox(){
+  return new Promise(function(resolve){
+    const back=document.createElement('div');back.className='dlgback';
+    const box=document.createElement('div');box.className='dlg';
+    const h3=document.createElement('h3');h3.textContent='Paste a list of names';
+    const p=document.createElement('p');
+    p.textContent='On an iPhone or iPad you can open the screenshot in Photos, tap the text '+
+      'button in the corner, Select All, Copy, then paste here. Odds and ends like headings '+
+      'and initials get filtered out.';
+    const ta=document.createElement('textarea');ta.rows=8;
+    box.appendChild(h3);box.appendChild(p);box.appendChild(ta);
+    const rowb=document.createElement('div');rowb.className='row';rowb.style.marginTop='14px';
+    const no=document.createElement('button');no.className='btn';no.textContent='Cancel';
+    const yes=document.createElement('button');yes.className='btn primary';yes.textContent='Read these';
+    rowb.appendChild(no);rowb.appendChild(yes);box.appendChild(rowb);
+    back.appendChild(box);document.body.appendChild(back);
+    setTimeout(function(){ta.focus();},30);
+    function done(v){document.body.removeChild(back);resolve(v);}
+    no.addEventListener('click',function(){done(null);});
+    yes.addEventListener('click',function(){done(ta.value);});
+    back.addEventListener('click',function(e){if(e.target===back)done(null);});
+  });
 }
+
 $('shotBtn').addEventListener('click',function(){$('shotFile').click();});
 $('shotFile').addEventListener('change',function(e){
   const file=e.target.files&&e.target.files[0];
@@ -984,31 +1181,91 @@ $('shotFile').addEventListener('change',function(e){
   if(!file)return;
   runOCR(file);
 });
+$('pasteBtn').addEventListener('click',function(){
+  pasteTextBox().then(function(txt){
+    if(txt==null)return;
+    const found=candidateNames(txt);
+    if(!found.good.length&&!found.junk.length){shotState('Nothing was pasted',true);return;}
+    return pickNamesBox(found.good,found.junk).then(function(chosen){
+      if(chosen&&chosen.length)addNamesToBox(chosen);
+      else if(chosen)shotState('Nothing added');
+    });
+  });
+});
+
 async function runOCR(file){
   $('shotBtn').disabled=true;
-  shotState('Getting the text reader ready\u2026');
+  ocrLog.length=0;ocrT0=Date.now();
+  $('shotLog').textContent='';
+  olog('picked '+(file.name||'a picture')+', '+Math.round((file.size||0)/1024)+'KB, type '+(file.type||'unknown'));
   let worker=null;
   try{
-    const T=await loadOCR();
-    shotState('Reading the screenshot\u2026');
-    worker=await T.createWorker('eng',1,{logger:function(m){
-      if(m&&m.status==='recognizing text'&&typeof m.progress==='number')
-        shotState('Reading the screenshot\u2026 '+Math.round(m.progress*100)+'%');
-    }});
-    const res=await worker.recognize(file);
-    const found=candidateNames(res&&res.data?res.data.text:'');
-    shotState('');
+    shotState('Opening the picture\u2026');shotBar(0.02);
+    const canvas=await withTimeout(fileToCanvas(file,1600),20000,'opening the picture');
+
+    shotState('Getting the text reader (about 6MB, once only)\u2026');
+    await withTimeout(loadOCR(),30000,'downloading the text reader');
+
+    olog('starting the reader');
+    shotState('Getting the text reader ready\u2026');
+    const T=window.Tesseract;
+    let lastStatus='';
+    const fatal=armFatal();
+    worker=await Promise.race([fatal,withTimeout(T.createWorker('eng',1,Object.assign({},OCR_PATHS,{
+      logger:function(m){
+        if(!m||!m.status)return;
+        if(m.status!==lastStatus){lastStatus=m.status;olog(m.status);}
+        const pct=typeof m.progress==='number'?m.progress:0;
+        shotBar(0.05+pct*0.45);
+        shotState(friendlyStatus(m.status)+(pct?' '+Math.round(pct*100)+'%':''));
+      },
+      errorHandler:function(err){olog('reader error: '+err);}
+    })),180000,'starting the reader')]);
+    ocrFatal=null;
+    olog('reader ready');
+
+    shotState('Reading the names\u2026');shotBar(0.55);
+    const res=await withTimeout(worker.recognize(canvas),120000,'reading the picture');
+    const text=(res&&res.data&&res.data.text)||'';
+    olog('read '+text.split(/\r?\n/).filter(Boolean).length+' lines of text');
+    shotBar(1);
+
+    const found=candidateNames(text);
+    olog('kept '+found.good.length+' as names, set aside '+found.junk.length);
+    shotState('');shotBar(null);
     const chosen=await pickNamesBox(found.good,found.junk);
     if(chosen&&chosen.length)addNamesToBox(chosen);
     else if(chosen)shotState('Nothing added');
   }catch(err){
-    shotState(String(err&&err.message)==='offline'
-      ? 'Could not fetch the text reader. It needs a connection the first time \u2014 or copy the names off the picture with your phone and paste them in.'
-      : 'Could not read that picture. Try a clearer screenshot, or paste the names in.',true);
+    shotBar(null);
+    const msg=String((err&&err.message)||err);
+    olog('stopped: '+msg);
+    if(msg==='WASMBLOCKED')
+      shotState('This browser blocked the text reader from running. Use "Paste a list of '+
+                'names" instead, or open the app from a web address rather than a file.',true);
+    else if(msg.indexOf('TIMEOUT:')===0)
+      shotState('Gave up while '+msg.slice(8)+'. Use "Paste a list of names" instead \u2014 that '+
+                'needs no download.',true);
+    else if(msg==='offline')
+      shotState('Could not fetch the text reader. It needs a connection the first time. '+
+                'Use "Paste a list of names" instead.',true);
+    else if(msg==='badimage')
+      shotState('That picture could not be opened. Try a screenshot saved as a photo.',true);
+    else
+      shotState('Could not read that picture ('+msg+'). Use "Paste a list of names" instead.',true);
   }finally{
-    if(worker){try{await worker.terminate();}catch(e){}}
+    ocrFatal=null;
+    if(worker){try{await worker.terminate();olog('reader shut down');}catch(e){}}
     $('shotBtn').disabled=false;
   }
+}
+function friendlyStatus(s){
+  if(/worker|script/i.test(s))return 'Starting the reader\u2026';
+  if(/traineddata|language/i.test(s))return 'Downloading the English data (about 3MB)\u2026';
+  if(/core|wasm/i.test(s))return 'Downloading the reader (about 3MB)\u2026';
+  if(/initiali/i.test(s))return 'Warming up\u2026';
+  if(/recogniz/i.test(s))return 'Reading the names\u2026';
+  return s.charAt(0).toUpperCase()+s.slice(1)+'\u2026';
 }
 function addNamesToBox(names){
   const box=$('players');
@@ -1845,7 +2102,7 @@ $('tNext').addEventListener('click',function(){
     const mf={
       name:'Pickle Draw',short_name:'Pickle Draw',
       description:'Round-robin mixer builder and court manager',
-      start_url:location.href,scope:'./',display:'standalone',orientation:'any',
+      start_url:location.href,display:'standalone',orientation:'any',
       background_color:'#F1EEE3',theme_color:'#F1EEE3',
       icons:[{src:icon192,sizes:'192x192',type:'image/png',purpose:'any'},
              {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}]
