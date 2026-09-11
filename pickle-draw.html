@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; manifest-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net blob:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https://cdn.jsdelivr.net blob: data:; worker-src blob:; child-src blob:; manifest-src blob:; base-uri 'none'; form-action 'none'">
 <title>Pickle Draw</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -120,6 +120,20 @@
   .linklike{background:none;border:none;color:var(--teal);font-weight:600;
     text-decoration:underline;cursor:pointer;font-size:.85rem;padding:4px 0 0}
   .hint{font-size:.82rem;color:var(--ink-soft);margin-top:-10px;margin-bottom:18px}
+  .shotrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 14px}
+  .shotstate{font-size:.84rem;color:var(--teal);font-weight:600}
+  .shotstate.bad{color:var(--clay)}
+  .picklist{max-height:46vh;overflow-y:auto;margin:4px 0 16px;
+    border:2px solid var(--line);border-radius:12px;padding:6px}
+  .pick{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
+    cursor:pointer;font-weight:600;font-size:1rem;user-select:none}
+  .pick:nth-child(odd){background:rgba(28,27,22,.035)}
+  .pick .box{width:24px;height:24px;flex:none;border:2px solid var(--ink);border-radius:7px;
+    display:flex;align-items:center;justify-content:center;font-size:.82rem;
+    background:var(--paper-2);font-weight:800}
+  .pick.on .box{background:var(--lime)}
+  .pick.off{color:var(--ink-soft)}
+  .picksub{font-size:.82rem;color:var(--ink-soft);font-weight:600;padding:10px 10px 4px}
 
   /* ---------- draw header ---------- */
   .drawbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -176,6 +190,8 @@
   .chips{display:flex;flex-wrap:wrap;gap:7px}
   .chip{background:var(--paper-2);border:2px solid var(--ink);border-radius:20px;
     padding:4px 11px;font-weight:600;font-size:.86rem}
+  .chip.rest{border-style:dashed;color:var(--clay);border-color:var(--clay)}
+  .chip .tag{font-size:.72rem;font-weight:700;margin-left:6px;color:var(--clay)}
 
   .notice{background:rgba(19,81,75,.08);border:2px dashed var(--teal);border-radius:12px;
     padding:16px;text-align:center;color:var(--teal);font-weight:600}
@@ -336,6 +352,11 @@
         <span class="lbl">Players <small id="pcount">0 players</small></span>
         <textarea id="players" rows="6" placeholder="One name per line&#10;Alex Nguyen&#10;Bri Taylor 3.5&#10;Cam&#10;Dana Okafor 4.0"></textarea>
       </label>
+      <div class="shotrow">
+        <button class="btn" id="shotBtn" type="button">Read names from a screenshot</button>
+        <input type="file" id="shotFile" accept="image/*" hidden>
+        <span class="shotstate" id="shotState"></span>
+      </div>
       <p class="hint">Full names are fine — the courts show first names only, and add a
         surname initial if two people share one. Put a level after a name if you use them,
         like <b>Bri Taylor 3.5</b>. Levels are optional and only matter if you pick one of
@@ -845,6 +866,168 @@ function uniqueAgainstRoster(name){
 }
 
 /* ============================================================
+   5b. READING NAMES OFF A SCREENSHOT
+   The recognition runs inside this browser — the picture is never
+   uploaded anywhere. The engine itself is fetched the first time
+   it's used and then cached, so that one step needs a connection.
+   ============================================================ */
+const OCR_SRC='https://cdn.jsdelivr.net/npm/tesseract.js@v7.0.0/dist/tesseract.min.js';
+let ocrLoading=null;
+function loadOCR(){
+  if(window.Tesseract)return Promise.resolve(window.Tesseract);
+  if(ocrLoading)return ocrLoading;
+  ocrLoading=new Promise(function(res,rej){
+    const s=document.createElement('script');
+    s.src=OCR_SRC;
+    s.onload=function(){window.Tesseract?res(window.Tesseract):rej(new Error('engine missing'));};
+    s.onerror=function(){ocrLoading=null;rej(new Error('offline'));};
+    document.head.appendChild(s);
+  });
+  return ocrLoading;
+}
+
+/* Opensports draws a circle of initials beside each name, and the phone's
+   status bar sits above the list, so the raw text needs a clean-up. */
+function cleanLine(raw){
+  let t=String(raw||'').replace(/[\u2018\u2019]/g,"'").replace(/\s+/g,' ').trim();
+  const m=t.match(/^([A-Z]{2,3})\s+(.+)$/);
+  if(m){
+    const rest=m[2];
+    const inits=rest.split(' ').map(function(wd){return (wd[0]||'').toUpperCase();}).join('');
+    const same=inits.slice(0,m[1].length)===m[1] ||
+               m[1].split('').every(function(c){return inits.indexOf(c)>-1;});
+    if(same)t=rest;
+  }
+  return t.trim();
+}
+const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|am|pm|today|tomorrow|yesterday|organiser|organizer|host|guest|guests)\b/i;
+function looksLikeName(t){
+  if(t.length<2||t.length>40)return false;
+  if(/[0-9]/.test(t))return false;                 /* times, battery, counts */
+  if(/[@#/\\|:()]/.test(t))return false;
+  if(OCR_CHROME.test(t))return false;
+  const words=t.split(' ');
+  if(words.length>4)return false;
+  if(words.length===1&&(t.length<=2||t===t.toUpperCase()))return false;
+  return words.every(function(wd){return /^[A-Za-z][A-Za-z'\-.]*$/.test(wd);});
+}
+function candidateNames(text){
+  const good=[],junk=[],seen={};
+  String(text||'').split(/\r?\n/).forEach(function(raw){
+    const line=cleanLine(raw);
+    if(!line)return;
+    const k=line.toLowerCase();
+    if(seen[k])return;
+    seen[k]=1;
+    (looksLikeName(line)?good:junk).push(line);
+  });
+  return {good:good,junk:junk};
+}
+
+/* tick-list so the volunteer confirms before anything lands in the box */
+function pickNamesBox(good,junk){
+  return new Promise(function(resolve){
+    const back=document.createElement('div');back.className='dlgback';
+    const box=document.createElement('div');box.className='dlg';
+    const h3=document.createElement('h3');
+    h3.textContent=good.length?'Found '+good.length+' name'+(good.length===1?'':'s'):'No names found';
+    const p=document.createElement('p');
+    p.textContent=good.length
+      ? 'Untick anyone who should not be there. You can fix spellings in the box afterwards.'
+      : 'Nothing on this picture looked like a name. Tick anything below that should be added.';
+    box.appendChild(h3);box.appendChild(p);
+    const list=document.createElement('div');list.className='picklist';
+    const state=[];
+    function row(text,on){
+      const el=document.createElement('div');
+      el.className='pick '+(on?'on':'off');
+      el.innerHTML='<span class="box">'+(on?'\u2713':'')+'</span><span></span>';
+      el.lastChild.textContent=text;
+      const rec={text:text,on:on,el:el};
+      el.addEventListener('click',function(){
+        rec.on=!rec.on;
+        el.className='pick '+(rec.on?'on':'off');
+        el.firstChild.textContent=rec.on?'\u2713':'';
+      });
+      state.push(rec);list.appendChild(el);
+    }
+    good.forEach(function(t){row(t,true);});
+    if(junk.length){
+      const sub=document.createElement('div');sub.className='picksub';
+      sub.textContent='Other text on the picture';
+      list.appendChild(sub);
+      junk.forEach(function(t){row(t,false);});
+    }
+    box.appendChild(list);
+    const rowb=document.createElement('div');rowb.className='row';
+    const no=document.createElement('button');no.className='btn';no.textContent='Cancel';
+    const yes=document.createElement('button');yes.className='btn primary';yes.textContent='Add to the list';
+    rowb.appendChild(no);rowb.appendChild(yes);box.appendChild(rowb);
+    back.appendChild(box);document.body.appendChild(back);
+    function done(v){document.body.removeChild(back);resolve(v);}
+    no.addEventListener('click',function(){done(null);});
+    yes.addEventListener('click',function(){
+      done(state.filter(function(r){return r.on;}).map(function(r){return r.text;}));
+    });
+    back.addEventListener('click',function(e){if(e.target===back)done(null);});
+  });
+}
+
+function shotState(msg,bad){
+  $('shotState').textContent=msg||'';
+  $('shotState').classList.toggle('bad',!!bad);
+}
+$('shotBtn').addEventListener('click',function(){$('shotFile').click();});
+$('shotFile').addEventListener('change',function(e){
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  runOCR(file);
+});
+async function runOCR(file){
+  $('shotBtn').disabled=true;
+  shotState('Getting the text reader ready\u2026');
+  let worker=null;
+  try{
+    const T=await loadOCR();
+    shotState('Reading the screenshot\u2026');
+    worker=await T.createWorker('eng',1,{logger:function(m){
+      if(m&&m.status==='recognizing text'&&typeof m.progress==='number')
+        shotState('Reading the screenshot\u2026 '+Math.round(m.progress*100)+'%');
+    }});
+    const res=await worker.recognize(file);
+    const found=candidateNames(res&&res.data?res.data.text:'');
+    shotState('');
+    const chosen=await pickNamesBox(found.good,found.junk);
+    if(chosen&&chosen.length)addNamesToBox(chosen);
+    else if(chosen)shotState('Nothing added');
+  }catch(err){
+    shotState(String(err&&err.message)==='offline'
+      ? 'Could not fetch the text reader. It needs a connection the first time \u2014 or copy the names off the picture with your phone and paste them in.'
+      : 'Could not read that picture. Try a clearer screenshot, or paste the names in.',true);
+  }finally{
+    if(worker){try{await worker.terminate();}catch(e){}}
+    $('shotBtn').disabled=false;
+  }
+}
+function addNamesToBox(names){
+  const box=$('players');
+  const have={};
+  splitEntries(box.value).forEach(function(s){have[parseEntry(s).name.toLowerCase()]=1;});
+  const fresh=names.filter(function(n){
+    const k=n.toLowerCase();
+    if(have[k])return false;
+    have[k]=1;return true;
+  });
+  if(!fresh.length){shotState('Those names are already on the list');return;}
+  const cur=box.value.replace(/\s+$/,'');
+  box.value=(cur?cur+'\n':'')+fresh.join('\n');
+  updatePCount();
+  shotState('Added '+fresh.length+' name'+(fresh.length===1?'':'s')+
+    (names.length>fresh.length?', '+(names.length-fresh.length)+' already there':''));
+}
+
+/* ============================================================
    6. SETUP SCREEN
    ============================================================ */
 let formatVal=4,roundMode='time',mixVal='social';
@@ -1007,6 +1190,25 @@ function refreshDisplayNames(){
     idx.forEach(function(i){S.players[i].disp=S.players[i].name;});
   });
 }
+/* Players resting by choice are not in the round's bye list — they were never in the
+   draw for it — but they still need to show in the sitting-out box. Anyone who has
+   gone home is left out entirely. */
+function restingIn(rd,r){
+  const on=new Set();
+  rd.courts.forEach(function(c){
+    c.teamA.forEach(function(x){on.add(x);});
+    c.teamB.forEach(function(x){on.add(x);});
+  });
+  const byeSet=new Set(rd.byes);
+  const out=[];
+  S.players.forEach(function(p,i){
+    if(!p.active)return;
+    if(on.has(i)||byeSet.has(i))return;
+    if(availableAt(i,r))return;
+    out.push(i);
+  });
+  return out;
+}
 function dn(i){
   const p=S.players[i];
   return p?(p.disp||p.name):'?';
@@ -1073,9 +1275,11 @@ function renderRound(){
 
   const rd=S.schedule[S.current];
   const inPlay=rd.courts.length;
+  const resting=restingIn(rd,S.current);
+  const offCount=rd.byes.length+resting.length;
   $('roundMeta').textContent=
     inPlay+' of '+S.courts+' court'+(S.courts===1?'':'s')+' in play'+
-    (rd.byes.length?' \u00b7 '+rd.byes.length+' sitting out':'');
+    (offCount?' \u00b7 '+offCount+' sitting out':'');
 
   $('openTimer').textContent=T.running&&T.round===S.current
     ? 'Back to the running timer'
@@ -1104,9 +1308,12 @@ function renderRound(){
       '</div></div>';
   });
   h+='</div>';
-  if(rd.byes.length){
+  if(rd.byes.length||resting.length){
     h+='<div class="byes"><div class="bt">Sitting out this round</div><div class="chips">';
     rd.byes.forEach(function(b){h+='<span class="chip">'+esc(dn(b))+'</span>';});
+    resting.forEach(function(b){
+      h+='<span class="chip rest">'+esc(dn(b))+'<span class="tag">resting</span></span>';
+    });
     h+='</div></div>';
   }
   body.innerHTML=h;
@@ -1122,9 +1329,12 @@ function renderAll(){
       h+='<div class="mc"><div class="mch">Court '+(k+1)+'</div>'+
         '<div class="mr">'+plain(ct.teamA)+'<span class="vs">vs</span>'+plain(ct.teamB)+'</div></div>';
     });
-    if(rd.byes.length){
+    const rest=restingIn(rd,r);
+    if(rd.byes.length||rest.length){
       h+='<div class="mc bye"><div class="mch">Sitting out</div><div class="mr">'+
-        rd.byes.map(function(b){return esc(dn(b));}).join(', ')+'</div></div>';
+        rd.byes.map(function(b){return esc(dn(b));})
+          .concat(rest.map(function(b){return esc(dn(b))+' (resting)';})).join(', ')+
+        '</div></div>';
     }
     h+='</div></div>';
   });
@@ -1498,7 +1708,8 @@ function paintTimer(){
   $('tState').textContent=T.over?'Time. Swap courts.'
     :(T.running?'Playing':(rem===S.minutes*60000?S.minutes+' minute game':'Paused'));
   const rd=S.schedule[S.current];
-  const stamp=S.current+':'+(rd?rd.courts.length+':'+rd.byes.length:'')+':'+S.players.length;
+  const stamp=S.current+':'+(rd?rd.courts.length+':'+rd.byes.length+':'+restingIn(rd,S.current).length:'')+
+              ':'+S.players.length;
   if(stamp!==tDrawStamp){
     tDrawStamp=stamp;
     let h='';
@@ -1507,8 +1718,11 @@ function paintTimer(){
         h+='<div class="tc"><span class="tcn">Court '+(k+1)+'</span>'+
            '<span class="tcp">'+plain(ct.teamA)+'<i>v</i>'+plain(ct.teamB)+'</span></div>';
       });
-      if(rd.byes.length)h+='<div class="tc bye"><span class="tcn">Sitting out</span>'+
-        '<span class="tcp">'+rd.byes.map(function(b){return esc(dn(b));}).join(', ')+'</span></div>';
+      const rest=restingIn(rd,S.current);
+      if(rd.byes.length||rest.length)h+='<div class="tc bye"><span class="tcn">Sitting out</span>'+
+        '<span class="tcp">'+rd.byes.map(function(b){return esc(dn(b));})
+          .concat(rest.map(function(b){return esc(dn(b))+' (resting)';})).join(', ')+
+        '</span></div>';
     }
     $('tDraw').innerHTML=h;
   }
