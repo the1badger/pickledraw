@@ -1052,6 +1052,13 @@ function cleanLine(raw){
   if(toks.length>2&&toks[0].length===1&&toks[1].length>1&&
      toks[0].toUpperCase()!==toks[1][0].toUpperCase())toks.shift();
 
+  /* A photo avatar can also read as two or three CAPITALS that have nothing to
+     do with the name — Al Percival's hat came back as "LE". That looks like a
+     perfectly good word, so drop a capitals-only lump off the front whenever
+     what follows already reads as a name on its own. */
+  if(toks.length>=3&&/^[A-Z]{2,3}$/.test(toks[0])&&looksLikeName(toks.slice(1).join(' ')))
+    toks=toks.slice(1);
+
   t=toks.join(' ');
   /* the circle of initials Opensports draws beside each name */
   const m=t.match(new RegExp('^([A-Z]{2,3})\\s+(.+)$'));
