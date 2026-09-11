@@ -1062,9 +1062,23 @@ function cleanLine(raw){
                m[1].split('').every(function(c){return inits.indexOf(c)>-1;});
     if(same)t=rest;
   }
+  /* A photo avatar can read as letters rather than symbols — Nina's came back
+     as "ah". Peeling only non-letter lumps misses that, so take the longest
+     run of words in the line that actually reads as a name. */
+  const words=t.split(' ');
+  if(words.length>1&&!looksLikeName(t)){
+    let best=null;
+    for(let len=words.length-1;len>=1&&!best;len--){
+      for(let i=0;i+len<=words.length;i++){
+        const cand=words.slice(i,i+len).join(' ');
+        if(looksLikeName(cand)){best=cand;break;}
+      }
+    }
+    if(best)t=best;
+  }
   return (t+(level?' '+level:'')).trim();
 }
-const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|am|pm|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
+const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
 /* lower-case joining words that legitimately sit inside a name */
 const NAME_BITS={van:1,von:1,de:1,del:1,della:1,di:1,da:1,das:1,du:1,dos:1,la:1,le:1,
   den:1,der:1,ten:1,ter:1,op:1,bin:1,ibn:1,al:1,af:1,mac:1,y:1,e:1};
@@ -1075,6 +1089,9 @@ function wordOk(wd,idx){
   if(/^[a-z]'[A-Z]/.test(wd))return true;                    /* d'Arcy, o'Brien */
   return idx>0&&NAME_BITS[wd.toLowerCase()]===1;
 }
+const LONE_WORDS={not:1,going:1,gone:1,maybe:1,out:1,in:1,on:1,off:1,yes:1,no:1,all:1,
+  any:1,list:1,back:1,done:1,chat:1,edit:1,share:1,host:1,guest:1,new:1,view:1,more:1,
+  the:1,and:1,for:1,you:1,me:1,am:1,pm:1,today:1,left:1,joined:1,waiting:1};
 function looksLikeName(t){
   const lv=t.match(/^(.*\S)\s+[1-7](\.[0-9]{1,2})?$/);
   const core=lv?lv[1]:t;
@@ -1085,6 +1102,7 @@ function looksLikeName(t){
   const words=core.split(' ');
   if(words.length>4)return false;
   if(words.length===1&&(core.length<=2||core===core.toUpperCase()))return false;
+  if(words.length===1&&LONE_WORDS[core.toLowerCase()]===1)return false;
   /* names in these lists are capitalised; a lower-case scrap is read-out debris */
   return words.every(wordOk);
 }
@@ -1227,7 +1245,9 @@ async function runOCR(file){
     shotState('Reading the names\u2026');shotBar(0.55);
     const res=await withTimeout(worker.recognize(canvas),120000,'reading the picture');
     const text=(res&&res.data&&res.data.text)||'';
-    olog('read '+text.split(/\r?\n/).filter(Boolean).length+' lines of text');
+    const rawLines=text.split(/\r?\n/).filter(function(s){return s.trim();});
+    olog('read '+rawLines.length+' lines of text:');
+    rawLines.forEach(function(s,i){olog('   ['+(i+1)+'] '+s.trim());});
     shotBar(1);
 
     const found=candidateNames(text);
