@@ -426,10 +426,10 @@
         <textarea id="players" rows="6" placeholder="One name per line&#10;Alex Nguyen&#10;Bri Taylor 3.5&#10;Cam&#10;Dana Okafor 4.0"></textarea>
       </label>
       <div class="shotrow">
-        <button class="btn sm" id="shotBtn" type="button">Read from a screenshot</button>
+        <button class="btn sm" id="shotBtn" type="button">Read screenshots</button>
         <button class="btn sm" id="pasteBtn" type="button">Paste a list</button>
         <button class="btn sm" id="loadExample" type="button">Example list</button>
-        <input type="file" id="shotFile" accept="image/*" hidden>
+        <input type="file" id="shotFile" accept="image/*" multiple hidden>
       </div>
       <div class="shotstate" id="shotState"></div>
       <div class="shotbar" id="shotBar" hidden><span id="shotBarFill"></span></div>
@@ -615,10 +615,11 @@
               <li><b>Type them</b>, one name per line.</li>
               <li><b>Paste a list</b> copied from a spreadsheet or an email. Commas, tabs and
                 semicolons all work, and it sorts them onto one name per line for you.</li>
-              <li><b>Read from a screenshot</b>. Take a screenshot of the Opensports attendee
-                list, tap this and choose the picture. It reads the names and shows you a
-                tick-list to confirm. If the list is too long for one screenshot, take two and
-                read them both in &mdash; anyone appearing twice is flagged.</li>
+              <li><b>Read screenshots</b>. Take a screenshot of the Opensports attendee list,
+                tap this and choose the picture. It reads the names and shows you a tick-list
+                to confirm. If the list is too long for one screenshot, take as many as you
+                need and <b>select them all at once</b> &mdash; they are read in one go, and
+                anyone appearing on more than one is flagged so they cannot go in twice.</li>
               <li><b>Example list</b> puts thirteen made-up players in, for a practice run.</li>
             </ul>
           </li>
@@ -1394,13 +1395,12 @@ function cleanLine(raw){
    "Check-in", "CHECK IN" and "Checkin" are all the same thing.
    Add a phrase to this list to have it ignored too.
    --------------------------------------------------------------- */
-const OCR_DROP=['name','new attendee','check in','bbpc member paddle','bbpc member','registration option',
-  'registration options','no shows','no show','total','totals','display settings',
-  'attendee waitlist','attendee list','waitlist','search by'];
+const OCR_DROP=['name','new attendee','check in','checked in','non-member',
+  'bbpc member paddle','bbpc member','bprc member','brpc member','brrc member',
+  'registration option','registration options','no shows','no show','total','totals',
+  'display settings','attendee waitlist','attendee list','waitlist','search by'];
 const OCR_DROP_RE=OCR_DROP.map(function(phrase){
-  const body=phrase.split(' ').map(function(wd){
-    return wd.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  }).join('[^a-zA-Z0-9]*');
+  const body=phrase.split(/[^a-zA-Z0-9]+/).filter(Boolean).join('[^a-zA-Z0-9]*');
   return new RegExp('\\b'+body+'\\b','gi');
 });
 function stripDropPhrases(s){
@@ -1411,7 +1411,7 @@ function stripDropPhrases(s){
   }
   return t;
 }
-const OCR_CHROME=/^(new attendee|checked in|checked-in|attendee|attendees|name|new|attendee|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
+const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
 /* lower-case joining words that legitimately sit inside a name */
 const NAME_BITS={van:1,von:1,de:1,del:1,della:1,di:1,da:1,das:1,du:1,dos:1,la:1,le:1,
   den:1,der:1,ten:1,ter:1,op:1,bin:1,ibn:1,al:1,af:1,mac:1,y:1,e:1};
@@ -1423,6 +1423,7 @@ function wordOk(wd,idx){
   return idx>0&&NAME_BITS[wd.toLowerCase()]===1;
 }
 const LONE_WORDS={not:1,going:1,gone:1,maybe:1,out:1,in:1,on:1,off:1,yes:1,no:1,all:1,
+  full:1,first:1,last:1,surname:1,given:1,player:1,members:1,member:1,attendee:1,attendees:1,
   any:1,list:1,back:1,done:1,chat:1,edit:1,share:1,host:1,guest:1,new:1,view:1,more:1,
   the:1,and:1,for:1,you:1,me:1,am:1,pm:1,today:1,left:1,joined:1,waiting:1};
 function looksLikeName(t){
@@ -1629,10 +1630,11 @@ function pasteTextBox(){
 
 $('shotBtn').addEventListener('click',function(){$('shotFile').click();});
 $('shotFile').addEventListener('change',function(e){
-  const file=e.target.files&&e.target.files[0];
+  /* copy the list before clearing the input — clearing it empties e.target.files */
+  const picked=e.target.files?Array.prototype.slice.call(e.target.files):[];
   e.target.value='';
-  if(!file)return;
-  runOCR(file);
+  if(!picked.length)return;
+  runOCR(picked);
 });
 $('pasteBtn').addEventListener('click',function(){
   pasteTextBox().then(function(txt){
@@ -1645,15 +1647,29 @@ $('pasteBtn').addEventListener('click',function(){
   });
 });
 
-async function runOCR(file){
+const MAX_SHOTS=10;
+let shotOf={i:0,n:1};
+async function runOCR(files){
   $('shotBtn').disabled=true;
   ocrLog.length=0;ocrT0=Date.now();
   $('shotLog').textContent='';
-  olog('picked '+(file.name||'a picture')+', '+Math.round((file.size||0)/1024)+'KB, type '+(file.type||'unknown'));
+  const list=files.slice(0,MAX_SHOTS);
+  if(files.length>list.length)
+    olog('picked '+files.length+' pictures \u2014 only the first '+MAX_SHOTS+' will be read');
+  olog('picked '+list.length+' picture'+(list.length===1?'':'s'));
+  const many=list.length>1;
+  const of=function(i){return many?' '+(i+1)+' of '+list.length:'';};
+  shotOf={i:0,n:list.length};
   let worker=null;
   try{
-    shotState('Opening the picture\u2026');shotBar(0.02);
-    const canvas=await withTimeout(fileToCanvas(file,1600),20000,'opening the picture');
+    /* open them all first, so a bad picture is found before the download */
+    const canvases=[];
+    for(let i=0;i<list.length;i++){
+      shotState('Opening picture'+of(i)+'\u2026');shotBar(0.02);
+      olog('picture'+of(i)+': '+(list[i].name||'unnamed')+', '+
+           Math.round((list[i].size||0)/1024)+'KB, type '+(list[i].type||'unknown'));
+      canvases.push(await withTimeout(fileToCanvas(list[i],1600),20000,'opening picture'+of(i)));
+    }
 
     shotState('Getting the text reader (about 6MB, once only)\u2026');
     await withTimeout(loadOCR(),30000,'downloading the text reader');
@@ -1668,23 +1684,31 @@ async function runOCR(file){
         if(!m||!m.status)return;
         if(m.status!==lastStatus){lastStatus=m.status;olog(m.status);}
         const pct=typeof m.progress==='number'?m.progress:0;
+        const per=shotOf.n>1?' '+(shotOf.i+1)+' of '+shotOf.n:'';
         shotBar(0.05+pct*0.45);
-        shotState(friendlyStatus(m.status)+(pct?' '+Math.round(pct*100)+'%':''));
+        shotState(friendlyStatus(m.status,per)+(pct?' '+Math.round(pct*100)+'%':''));
       },
       errorHandler:function(err){olog('reader error: '+err);}
     })),180000,'starting the reader')]);
     ocrFatal=null;
     olog('reader ready');
 
-    shotState('Reading the names\u2026');shotBar(0.55);
-    const res=await withTimeout(worker.recognize(canvas),120000,'reading the picture');
-    const text=(res&&res.data&&res.data.text)||'';
-    const rawLines=text.split(/\r?\n/).filter(function(s){return s.trim();});
-    olog('read '+rawLines.length+' lines of text:');
-    rawLines.forEach(function(s,i){olog('   ['+(i+1)+'] '+s.trim());});
+    /* one reader, every picture — the slow part is only paid for once */
+    const texts=[];
+    for(let i=0;i<canvases.length;i++){
+      shotOf={i:i,n:list.length};
+      shotState('Reading the names'+of(i)+'\u2026');
+      shotBar(0.55+0.4*(i/canvases.length));
+      const res=await withTimeout(worker.recognize(canvases[i]),120000,'reading picture'+of(i));
+      const text=(res&&res.data&&res.data.text)||'';
+      const rawLines=text.split(/\r?\n/).filter(function(s){return s.trim();});
+      olog('picture'+of(i)+' gave '+rawLines.length+' lines of text:');
+      rawLines.forEach(function(s,k){olog('   ['+(i+1)+'.'+(k+1)+'] '+s.trim());});
+      texts.push(text);
+    }
     shotBar(1);
 
-    const found=candidateNames(text);
+    const found=candidateNames(texts.join('\n'));
     olog('kept '+found.good.length+' as names, set aside '+found.junk.length);
     shotState('');shotBar(null);
     const chosen=await pickNamesBox(found.good,found.junk);
@@ -1703,7 +1727,7 @@ async function runOCR(file){
       shotState('Could not fetch the text reader. It needs a connection the first time. '+
                 'Use "Paste a list of names" instead.',true);
     else if(msg==='badimage')
-      shotState('That picture could not be opened. Try a screenshot saved as a photo.',true);
+      shotState('One of those pictures could not be opened. Try screenshots saved as photos.',true);
     else
       shotState('Could not read that picture ('+msg+'). Use "Paste a list of names" instead.',true);
   }finally{
@@ -1712,12 +1736,13 @@ async function runOCR(file){
     $('shotBtn').disabled=false;
   }
 }
-function friendlyStatus(s){
+function friendlyStatus(s,per){
+  per=per||'';
   if(/worker|script/i.test(s))return 'Starting the reader\u2026';
   if(/traineddata|language/i.test(s))return 'Downloading the English data (about 3MB)\u2026';
   if(/core|wasm/i.test(s))return 'Downloading the reader (about 3MB)\u2026';
   if(/initiali/i.test(s))return 'Warming up\u2026';
-  if(/recogniz/i.test(s))return 'Reading the names\u2026';
+  if(/recogniz/i.test(s))return 'Reading the names'+per+'\u2026';
   return s.charAt(0).toUpperCase()+s.slice(1)+'\u2026';
 }
 function addNamesToBox(names){
