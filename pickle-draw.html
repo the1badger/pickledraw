@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net blob:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https://cdn.jsdelivr.net blob: data:; worker-src blob:; child-src blob:; manifest-src blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' https://cdn.jsdelivr.net blob:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'self' https://cdn.jsdelivr.net blob: data:; worker-src blob:; child-src blob:; manifest-src blob:; base-uri 'none'; form-action 'none'">
 <title>Pickle Draw</title>
+<!-- Bump this whenever you publish a new copy. The installed app compares it
+     with the one it finds at its own web address to spot an update. -->
+<meta name="app-version" content="2026-09-12.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -273,6 +276,11 @@
   table.tbl tr.outrow td{color:var(--ink-soft);text-decoration:line-through}
 
   .foot{text-align:center;font-size:.8rem;color:var(--ink-soft);margin-top:30px}
+  .updbar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;
+    background:var(--lime);border:2px solid var(--ink);border-radius:12px;
+    padding:11px 14px;margin-bottom:16px;box-shadow:3px 3px 0 rgba(28,27,22,.2)}
+  .updtext{font-weight:600;font-size:.92rem;flex:1;min-width:200px}
+  .updbtns{display:flex;gap:8px}
 
   /* ---------- toast ---------- */
   #toast{position:fixed;left:50%;transform:translateX(-50%);
@@ -348,6 +356,14 @@
 </head>
 <body>
 <div class="wrap">
+
+  <div class="updbar noprint" id="updBar" hidden>
+    <span class="updtext" id="updText"></span>
+    <span class="updbtns">
+      <button class="btn sm primary" id="updNow">Reload now</button>
+      <button class="btn sm" id="updLater">Later</button>
+    </span>
+  </div>
 
   <div class="mast">
     <div class="ball"></div>
@@ -559,7 +575,10 @@
     </div>
   </section>
 
-  <div class="foot">Works with no signal. Everything is saved on this device only.</div>
+  <div class="foot">Works with no signal. Everything is saved on this device only.<br>
+    <span id="verText"></span>
+    <button class="linklike noprint" id="updCheck" type="button">Check for a newer version</button>
+  </div>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -2755,6 +2774,93 @@ $('tNext').addEventListener('click',finishRound);
     $('resumeCard').hidden=true;
   });
 })();
+
+/* ============================================================
+   12. IS THERE A NEWER COPY PUBLISHED?
+   The installed app re-reads its own web address now and then and
+   compares the version stamp in the file it finds with its own. If
+   there is no signal, or it was opened from a file rather than a web
+   address, the check just does nothing.
+   ============================================================ */
+const APP_VERSION=(function(){
+  const m=document.querySelector('meta[name="app-version"]');
+  return (m&&m.content)||'';
+})();
+const DISMISS_KEY='pickle-draw-update-seen';
+const UPDATE_GAP=30*60*1000;
+let lastUpdCheck=0;
+
+$('verText').textContent=APP_VERSION?'Version '+APP_VERSION+' \u00b7 ':'';
+
+function appSourceUrl(){
+  if(location.protocol!=='http:'&&location.protocol!=='https:')return null;
+  return location.origin+location.pathname;
+}
+function dismissedVersion(){
+  try{return localStorage.getItem(DISMISS_KEY)||'';}catch(e){return '';}
+}
+function showUpdateBanner(newVer){
+  if(!newVer||newVer===APP_VERSION)return;
+  if(dismissedVersion()===newVer)return;
+  $('updText').textContent='A newer version is ready ('+newVer+'). Your session is saved, '+
+    'so reloading will offer to pick up where you left off.';
+  $('updBar').hidden=false;
+  $('updBar').dataset.ver=newVer;
+}
+function checkForUpdate(manual){
+  const base=appSourceUrl();
+  if(!base){
+    if(manual)toast('Only works when the app is opened from a web address');
+    return;
+  }
+  const now=Date.now();
+  if(!manual&&now-lastUpdCheck<UPDATE_GAP)return;
+  lastUpdCheck=now;
+  if(manual)toast('Checking\u2026');
+  fetch(base+'?v='+now,{cache:'no-store'})
+    .then(function(r){
+      if(!r.ok)throw new Error('http '+r.status);
+      return r.text();
+    })
+    .then(function(txt){
+      const m=txt.match(/<meta\s+name="app-version"\s+content="([^"]+)"/i);
+      if(!m)throw new Error('no version stamp found');
+      if(m[1]===APP_VERSION){
+        $('updBar').hidden=true;
+        if(manual)toast('This is the latest version');
+        return;
+      }
+      showUpdateBanner(m[1]);
+      if(manual)toast('Version '+m[1]+' is available');
+    })
+    .catch(function(){
+      if(manual)toast('Could not check just now');    /* no signal — say nothing otherwise */
+    });
+}
+function gotoFresh(url){
+  try{
+    if(url)location.replace(url);                      /* sidesteps the cached copy */
+    else location.reload();
+  }catch(e){location.reload();}
+}
+$('updNow').addEventListener('click',function(){
+  saveNow();
+  const base=appSourceUrl();
+  gotoFresh(base?base+'?v='+Date.now():'');
+});
+$('updLater').addEventListener('click',function(){
+  const v=$('updBar').dataset.ver||'';
+  try{if(v)localStorage.setItem(DISMISS_KEY,v);}catch(e){}
+  $('updBar').hidden=true;
+});
+$('updCheck').addEventListener('click',function(){
+  try{localStorage.removeItem(DISMISS_KEY);}catch(e){}
+  checkForUpdate(true);
+});
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible')checkForUpdate(false);
+});
+setTimeout(function(){checkForUpdate(false);},4000);
 
 /* A tiny web app manifest, built in memory so the file stays self-contained. */
 (function manifest(){
