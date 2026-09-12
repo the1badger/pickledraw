@@ -1394,9 +1394,9 @@ function cleanLine(raw){
    "Check-in", "CHECK IN" and "Checkin" are all the same thing.
    Add a phrase to this list to have it ignored too.
    --------------------------------------------------------------- */
-const OCR_DROP=['check in','bbpc member paddle','bbpc member','registration option',
+const OCR_DROP=['name','new attendee','check in','bbpc member paddle','bbpc member','registration option',
   'registration options','no shows','no show','total','totals','display settings',
-  'attendee waitlist','attendee list','waitlist'];
+  'attendee waitlist','attendee list','waitlist','search by'];
 const OCR_DROP_RE=OCR_DROP.map(function(phrase){
   const body=phrase.split(' ').map(function(wd){
     return wd.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -1411,7 +1411,7 @@ function stripDropPhrases(s){
   }
   return t;
 }
-const OCR_CHROME=/^(attendee|attendees|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
+const OCR_CHROME=/^(new attendee|checked in|checked-in|attendee|attendees|name|new|attendee|going|not going|maybe|waitlist|wait list|going list|players|member|members|search|cancel|done|back|edit|share|invite|list|today|tomorrow|yesterday|organiser|organizer|host|guest|guests|rsvp|attending|registered|signed|reserve|details|chat|comment|comments|joined|waiting)\b/i;
 /* lower-case joining words that legitimately sit inside a name */
 const NAME_BITS={van:1,von:1,de:1,del:1,della:1,di:1,da:1,das:1,du:1,dos:1,la:1,le:1,
   den:1,der:1,ten:1,ter:1,op:1,bin:1,ibn:1,al:1,af:1,mac:1,y:1,e:1};
