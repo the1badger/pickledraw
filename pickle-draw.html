@@ -7,7 +7,7 @@
 <title>Pickle Draw</title>
 <!-- Bump this whenever you publish a new copy. The installed app compares it
      with the one it finds at its own web address to spot an update. -->
-<meta name="app-version" content="2026-09-12.2">
+<meta name="app-version" content="2026-09-12.5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -117,6 +117,20 @@
 
   #setup .card{margin-top:18px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(94px,1fr));gap:0 14px}
+  .rowline{display:flex;align-items:center;justify-content:space-between;
+    gap:10px 14px;flex-wrap:wrap;margin-bottom:16px}
+  .rowline .lbl{font-weight:600;font-size:.88rem}
+  .rowline .rowend{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .rowline .inlinein{width:auto;flex:0 1 auto;max-width:100%}
+  .instbar{margin:10px 0 4px}
+  .inst{font-size:.94rem;line-height:1.6}
+  .inst h2.instTitle{font-size:1.25rem;margin:6px 0 10px;display:none}
+  .inst h4{font-size:1rem;margin:18px 0 6px}
+  .inst p{margin:8px 0}
+  .inst ol,.inst ul{margin:6px 0 6px 20px}
+  .inst li{margin:4px 0}
+  .inst ul ul{margin:4px 0 4px 18px}
   .computed{font-size:.88rem;color:var(--teal);font-weight:600;
     background:rgba(19,81,75,.08);border-radius:8px;padding:7px 10px;margin-top:-8px;margin-bottom:16px}
   .err{color:var(--clay);font-weight:600;font-size:.88rem;margin-top:6px;display:none}
@@ -161,6 +175,11 @@
   }
   .roundmeta{font-size:.86rem;color:var(--ink-soft);font-weight:500}
   .navbtn{width:44px;height:44px;font-size:1.2rem;display:flex;align-items:center;justify-content:center;padding:0}
+  .iconbtn{width:42px;height:42px;border-radius:50%;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .iconbtn svg{display:block}
+  .allhead{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin:-4px 0 10px}
   .statusrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .badge{font-family:var(--disp);font-weight:700;font-size:.78rem;border-radius:20px;padding:3px 11px;border:2px solid}
   .badge.done{border-color:var(--line-strong);color:var(--ink-soft);background:transparent}
@@ -347,6 +366,13 @@
   @media print{
     body{background:#fff;background-image:none}
     .noprint,.timer,#toast{display:none!important}
+    #instCard{display:none!important}
+    body.print-inst .wrap>*{display:none!important}
+    body.print-inst #instCard{display:block!important;box-shadow:none;border:none;padding:0}
+    body.print-inst #instCard .ph{display:none!important}
+    body.print-inst #instWrap{display:block!important}
+    body.print-inst .inst h2.instTitle{display:block}
+    body.print-inst .inst h4{page-break-after:avoid}
     .card{box-shadow:none;border-color:#000}
     .court,.mc{box-shadow:none}
     #allView{display:block!important}
@@ -386,42 +412,27 @@
     </div>
 
     <div class="card">
-      <div class="grid2">
-        <label class="fld">
-          <span class="lbl">Session name <small>optional</small></span>
-          <input type="text" id="sessionName" placeholder="Thursday morning mixer">
-        </label>
-        <label class="fld">
-          <span class="lbl">When</span>
-          <input type="datetime-local" id="sessionWhen">
-        </label>
+      <div class="fld" style="margin-bottom:12px">
+        <input type="text" id="sessionName" aria-label="Session name"
+               placeholder="Session name (optional)">
       </div>
+      <label class="rowline">
+        <span class="lbl">When</span>
+        <input type="datetime-local" id="sessionWhen" class="inlinein">
+      </label>
 
-      <label class="fld">
+      <label class="fld" style="margin-bottom:10px">
         <span class="lbl">Players <small id="pcount">0 players</small></span>
         <textarea id="players" rows="6" placeholder="One name per line&#10;Alex Nguyen&#10;Bri Taylor 3.5&#10;Cam&#10;Dana Okafor 4.0"></textarea>
       </label>
       <div class="shotrow">
-        <button class="btn" id="shotBtn" type="button">Read names from a screenshot</button>
-        <button class="btn" id="pasteBtn" type="button">Paste a list of names</button>
+        <button class="btn sm" id="shotBtn" type="button">Read from a screenshot</button>
+        <button class="btn sm" id="pasteBtn" type="button">Paste a list</button>
+        <button class="btn sm" id="loadExample" type="button">Example list</button>
         <input type="file" id="shotFile" accept="image/*" hidden>
       </div>
       <div class="shotstate" id="shotState"></div>
       <div class="shotbar" id="shotBar" hidden><span id="shotBarFill"></span></div>
-      <div class="shotlogwrap" id="shotLogWrap" hidden>
-        <button class="linklike" id="shotLogToggle" type="button">Show what happened</button>
-        <button class="linklike" id="shotLogCopy" type="button" hidden>Copy this log</button>
-        <pre class="shotlog" id="shotLog" hidden></pre>
-      </div>
-      <p class="hint">Paste a spreadsheet column or a comma-separated list straight in and
-        it gets sorted onto one player per line.
-        Full names are fine — the courts show first names only, and add a
-        surname initial if two people share one. Put a level after a name if you use them,
-        like <b>Bri Taylor 3.5</b>. Levels are optional and only matter if you pick one of
-        the level-aware mixes below. If the list needs two screenshots, read them both in
-        — anyone who appears twice is flagged so they can't be added again.
-        <button class="linklike" id="loadExample" type="button">Load an example list</button>
-      </p>
 
       <div class="grid2">
         <label class="fld">
@@ -437,62 +448,54 @@
         </label>
       </div>
 
-      <label class="fld">
+      <div class="rowline">
         <span class="lbl">How to mix</span>
         <div class="seg" id="mixSeg">
           <button type="button" data-v="social" class="on">Pure social</button>
           <button type="button" data-v="even">Even teams</button>
           <button type="button" data-v="similar">Similar levels</button>
         </div>
-      </label>
-      <p class="hint" id="mixHint">Ignores levels entirely. Everyone plays with and against
-        everyone, as evenly as the numbers allow.</p>
+      </div>
 
-      <label class="fld" style="margin-bottom:10px">
+      <div class="rowline">
         <span class="lbl">How many rounds</span>
         <div class="seg" id="roundModeSeg">
           <button type="button" data-v="count">Set a number</button>
-          <button type="button" data-v="time" class="on">Work it out from the session length</button>
+          <button type="button" data-v="time" class="on">From session length</button>
         </div>
-      </label>
+      </div>
 
-      <div id="countMode" style="display:none">
-        <label class="fld">
-          <span class="lbl">Number of rounds</span>
+      <div class="grid3">
+        <label class="fld" id="countMode" style="display:none">
+          <span class="lbl">Rounds</span>
           <input type="number" id="rounds" min="1" max="60" value="8" inputmode="numeric">
         </label>
-      </div>
-
-      <div id="timeMode">
-        <label class="fld">
-          <span class="lbl">Session length <small>minutes</small></span>
+        <label class="fld" id="timeMode">
+          <span class="lbl">Session <small>min</small></span>
           <input type="number" id="totalMin" min="5" max="600" value="120" inputmode="numeric">
         </label>
-        <div class="computed" id="timeComputed"></div>
-      </div>
-
-      <div class="grid2">
         <label class="fld">
-          <span class="lbl">Minutes per game <small>the on-court timer uses this</small></span>
+          <span class="lbl">Per game <small>min</small></span>
           <input type="number" id="perMin" min="1" max="60" value="12" inputmode="numeric">
         </label>
         <label class="fld">
-          <span class="lbl">Changeover <small>minutes between games</small></span>
+          <span class="lbl">Changeover <small>min</small></span>
           <input type="number" id="changeMin" min="0" max="30" value="2" inputmode="numeric">
         </label>
       </div>
+      <div class="computed" id="timeComputed"></div>
 
-      <label class="fld" style="margin-bottom:8px">
-        <span class="lbl">When a game runs out of time</span>
-        <div class="seg" id="soundSeg">
-          <button type="button" data-v="beeps" class="on">Beeps</button>
-          <button type="button" data-v="siren">Siren</button>
-          <button type="button" data-v="silent">Silent</button>
-        </div>
-      </label>
-      <p class="hint">The phone vibrates as well, where it can.
-        <button class="linklike" id="soundTry" type="button">Try it</button>
-      </p>
+      <div class="rowline">
+        <span class="lbl">Time-up sound</span>
+        <span class="rowend">
+          <div class="seg" id="soundSeg">
+            <button type="button" data-v="beeps" class="on">Beeps</button>
+            <button type="button" data-v="siren">Siren</button>
+            <button type="button" data-v="silent">Silent</button>
+          </div>
+          <button class="linklike" id="soundTry" type="button">Try it</button>
+        </span>
+      </div>
 
       <div class="err" id="setupErr"></div>
       <button class="btn primary" id="generateBtn" style="margin-top:6px;width:100%;padding:14px;font-size:1.05rem">
@@ -513,10 +516,8 @@
         <button type="button" data-v="all">Whole draw</button>
       </div>
       <div class="right">
-        <button class="btn sm" id="addRoundBtn">Add a round</button>
-        <button class="btn sm" id="dropRoundBtn">Drop last round</button>
-        <button class="btn sm" id="printBtn">Print</button>
-        <button class="btn sm" id="reshuffleBtn">Redraw everything</button>
+        <button class="btn iconbtn" id="reshuffleBtn" aria-label="Redraw the whole session"
+                title="Redraw the whole session"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5V9h-5.5"/></svg></button>
         <button class="btn sm dark" id="editBtn">Change setup</button>
         <button class="btn sm danger" id="newSessionBtn">New session</button>
       </div>
@@ -527,6 +528,8 @@
         <button class="btn navbtn" id="prevBtn" aria-label="Previous round">&lsaquo;</button>
         <select id="roundSelect" aria-label="Choose round"></select>
         <button class="btn navbtn" id="nextBtn" aria-label="Finish this round and move on">&rsaquo;</button>
+        <button class="btn navbtn" id="addRoundBtn" aria-label="Add another round"
+                title="Add another round">+</button>
         <span class="roundmeta" id="roundMeta"></span>
       </div>
       <div class="statusrow noprint">
@@ -539,6 +542,11 @@
 
     <div id="allView" style="display:none">
       <div class="card">
+        <div class="allhead noprint">
+          <span class="eyebrow">Every round</span>
+          <button class="btn iconbtn" id="printBtn" aria-label="Print the whole draw"
+                  title="Print the whole draw"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3.5h10V9"/><path d="M5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-1"/><path d="M6 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9"/><path d="M7 14h10v6.5H7z"/></svg></button>
+        </div>
         <div id="allBody"></div>
       </div>
     </div>
@@ -575,7 +583,133 @@
     </div>
   </section>
 
-  <div class="foot">Works with no signal. Everything is saved on this device only.<br>
+  <div class="shotlogwrap noprint" id="shotLogWrap" hidden>
+    <button class="linklike" id="shotLogToggle" type="button">Show what happened</button>
+    <button class="linklike" id="shotLogCopy" type="button" hidden>Copy this log</button>
+    <pre class="shotlog" id="shotLog" hidden></pre>
+  </div>
+
+  <div class="card panel" id="instCard">
+    <button type="button" class="ph" id="instHead" aria-expanded="false" aria-controls="instWrap">
+      <h3>Instructions</h3>
+      <span class="phmeta">How to run a session</span>
+      <span class="chev" aria-hidden="true">&#9662;</span>
+    </button>
+    <div id="instWrap" hidden>
+      <div class="instbar noprint">
+        <button class="btn sm" id="instPrint" type="button">Print these instructions</button>
+      </div>
+      <div class="inst">
+        <h2 class="instTitle">Pickle Draw &mdash; how to run a session</h2>
+        <p>Pickle Draw works out who plays with whom, on which court, for every round of a
+          social session. It tries to give everyone the same number of games, a different
+          partner each time, and a fair share of sit-outs. It runs on your phone or tablet
+          and keeps everything on that device.</p>
+
+        <h4>1. Start a session</h4>
+        <ol>
+          <li>Give it a name if you like &mdash; "Thursday morning mixer". The date and time
+            fill themselves in, so change them only if you are setting up ahead.</li>
+          <li>Get the players in. There are four ways, and you can mix them:
+            <ul>
+              <li><b>Type them</b>, one name per line.</li>
+              <li><b>Paste a list</b> copied from a spreadsheet or an email. Commas, tabs and
+                semicolons all work, and it sorts them onto one name per line for you.</li>
+              <li><b>Read from a screenshot</b>. Take a screenshot of the Opensports attendee
+                list, tap this and choose the picture. It reads the names and shows you a
+                tick-list to confirm. If the list is too long for one screenshot, take two and
+                read them both in &mdash; anyone appearing twice is flagged.</li>
+              <li><b>Example list</b> puts thirteen made-up players in, for a practice run.</li>
+            </ul>
+          </li>
+          <li>If your club uses levels, put the number after the name &mdash; <b>Bri Taylor 3.5</b>.
+            This is optional and only matters if you choose one of the level-aware mixes.</li>
+        </ol>
+
+        <h4>2. Set up the session</h4>
+        <ul>
+          <li><b>Courts in use</b> &mdash; how many are yours this morning.</li>
+          <li><b>Format</b> &mdash; doubles (four a court) or singles (two).</li>
+          <li><b>How to mix</b>:
+            <ul>
+              <li><b>Pure social</b> ignores levels. Everyone plays with and against everyone.</li>
+              <li><b>Even teams</b> still mixes everyone up, but tries to make the two sides of
+                each net add up to about the same level.</li>
+              <li><b>Similar levels</b> keeps each court to players of a similar standard, so the
+                stronger and gentler courts sort themselves out.</li>
+            </ul>
+          </li>
+          <li><b>How many rounds</b> &mdash; either set a number, or let it work out from how long
+            you have. It allows for the changeover between games, and shows you the sum.</li>
+          <li><b>Per game</b> and <b>Changeover</b> &mdash; the game length also sets the on-court
+            timer.</li>
+          <li><b>Time-up sound</b> &mdash; beeps, a siren, or silent. Silent still buzzes the phone.
+            Tap <b>Try it</b> to hear it before you commit.</li>
+        </ul>
+        <p>Then tap <b>Build the draw</b>.</p>
+
+        <h4>3. On the courts</h4>
+        <ol>
+          <li>The screen shows the current round: each court, with team A against team B, and
+            anyone sitting out underneath.</li>
+          <li>Tap <b>Start a 12 minute game</b> (or whatever you set). The screen goes dark with a
+            big countdown, the session name, and the pairings for all courts. It keeps the
+            screen awake, beeps once at a minute to go, and sounds at the end.</li>
+          <li>When time is up the sound plays and it moves itself on to the next round. If you
+            would rather do it by hand, tap <b>Finish round</b>.</li>
+          <li>The arrows move between rounds. Moving forward marks a round as played, and played
+            rounds never change afterwards. The padlock lets you correct that.</li>
+        </ol>
+
+        <h4>4. When things change &mdash; tap a player's name</h4>
+        <ul>
+          <li><b>Put on a court</b> &mdash; place somebody on a particular court for the next round
+            and the rest of that round is drawn around them. Place up to a full court.</li>
+          <li><b>Keep apart from</b> &mdash; tick anyone who should not share a court with them, for
+            the rest of the session.</li>
+          <li><b>Sitting out the next round</b> or <b>the next two</b> &mdash; for someone who needs a
+            breather. They come back on by themselves.</li>
+          <li><b>Gone home for the day</b> &mdash; takes them out of everything from here on.</li>
+          <li>Tap anyone who is off to put them straight back on.</li>
+          <li>A latecomer goes in the <b>Add a latecomer</b> box. They will be given games
+            straight away to catch up.</li>
+        </ul>
+        <p>Every one of these redraws the rounds that have not been played yet, and leaves the
+          played ones alone.</p>
+
+        <h4>5. Other things worth knowing</h4>
+        <ul>
+          <li><b>Add a round</b> if you have time to spare; it keeps everything already drawn.
+            <b>Drop last round</b> does the opposite.</li>
+          <li><b>Whole draw</b> shows every round at once, and <b>Print</b> gives you a paper copy
+            with the session name and date on it.</li>
+          <li><b>How good is this draw</b> shows games each, repeat partners and sit-outs, so you
+            can see it is being fair.</li>
+          <li><b>Redraw everything</b> puts every round back in the hat. <b>Change setup</b> lets you
+            alter the settings and build again. <b>New session</b> clears the lot and starts fresh.
+            All three ask first.</li>
+          <li>The session saves itself as you go, so a flat battery or a closed app is not a
+            disaster &mdash; when you come back it offers to pick up where you left off.</li>
+          <li>Names on the courts are shortened to first names, and a surname initial is added
+            if two people share a first name.</li>
+        </ul>
+
+        <h4>6. If something is not right</h4>
+        <ul>
+          <li>If reading a screenshot goes wrong, tap <b>Show what happened</b> at the bottom of
+            the setup page. It records exactly what was read, and <b>Copy this log</b> puts it on
+            the clipboard so you can send it on.</li>
+          <li>Reading a screenshot needs a connection the first time, to fetch the text reader.
+            After that it works without one. Everything else works with no signal at all.</li>
+          <li>At the bottom of the page it says whether the app is saved on this device or
+            loading from the web, along with its version. <b>Check for a newer version</b> looks
+            to see whether a newer one has been published.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
     <span id="verText"></span><span id="offState"></span>
     <button class="linklike noprint" id="updCheck" type="button">Check for a newer version</button>
   </div>
@@ -835,6 +969,7 @@ const S={
   view:'round',
   rosterOpen:false,
   statsOpen:false,
+  instOpen:false,
   pins:null,         // {round:n, map:{playerIndex:courtIndex}} — one round only
   avoid:[],          // [[i,j],...] pairs to keep off the same court
   pairs:[]
@@ -1598,11 +1733,6 @@ function addNamesToBox(names){
    6. SETUP SCREEN
    ============================================================ */
 let formatVal=4,roundMode='time',mixVal='social',soundVal='beeps';
-const MIXTEXT={
-  social:"Ignores levels entirely. Everyone plays with and against everyone, as evenly as the numbers allow.",
-  even:"Still mixes everyone up, but tries to make the two sides of each net add up to about the same level.",
-  similar:"Tries to keep each court to players of a similar level, so the strong courts and the gentler courts sort themselves out."
-};
 
 /* ---------------------------------------------------------------
    Pasting a spreadsheet or CSV into the players box.
@@ -1746,7 +1876,6 @@ $('mixSeg').addEventListener('click',function(e){
   const b=e.target.closest('button');if(!b)return;
   mixVal=b.dataset.v;
   Array.prototype.forEach.call($('mixSeg').children,function(c){c.classList.toggle('on',c===b);});
-  $('mixHint').textContent=MIXTEXT[mixVal];
 });
 $('roundModeSeg').addEventListener('click',function(e){
   const b=e.target.closest('button');if(!b)return;
@@ -1939,7 +2068,6 @@ function renderDraw(){
   renderRound();renderAll();          /* both, so Print always has the full draw ready */
   renderRoster();
   renderStats();
-  $('dropRoundBtn').disabled=S.schedule.length<=1||S.schedule.length<=S.locked;
   saveSoon();
 }
 
@@ -1961,6 +2089,7 @@ function renderRound(){
   sel.value=S.current;
   $('prevBtn').disabled=S.current<=0;
   $('nextBtn').disabled=S.current>=S.schedule.length-1;
+  $('addRoundBtn').disabled=S.current<S.schedule.length-1;
 
   const rd=S.schedule[S.current];
   const inPlay=rd.courts.length;
@@ -2318,19 +2447,13 @@ $('lockBtn').addEventListener('click',function(){
 });
 
 $('addRoundBtn').addEventListener('click',function(){
+  if(S.current<S.schedule.length-1)return;      /* only from the last round */
   S.rounds=S.schedule.length+1;
   S.schedule=generateRounds(S.players.length,activeAt,S.courts,S.rounds,S.perCourt,
                             S.schedule.slice(),lockMapNow(),cfgNow());
+  S.current=S.schedule.length-1;
   renderDraw();
   toast('Round '+S.schedule.length+' added');
-});
-$('dropRoundBtn').addEventListener('click',function(){
-  if(S.schedule.length<=1||S.schedule.length<=S.locked)return;
-  S.schedule.pop();
-  S.rounds=S.schedule.length;
-  if(S.current>S.schedule.length-1)S.current=S.schedule.length-1;
-  renderDraw();
-  toast('Last round dropped');
 });
 
 $('reshuffleBtn').addEventListener('click',function(){
@@ -2347,7 +2470,12 @@ $('reshuffleBtn').addEventListener('click',function(){
       toast('New draw');
     });
 });
-$('printBtn').addEventListener('click',function(){window.print();});
+$('printBtn').addEventListener('click',function(){
+  try{window.print();}catch(e){}
+  /* a home-screen web app on iOS has no print dialog at all */
+  if(navigator.standalone===true)
+    toast('If nothing happens, open the same web address in Safari to print');
+});
 
 $('editBtn').addEventListener('click',function(){
   const msg=S.locked>0
@@ -2368,7 +2496,6 @@ $('editBtn').addEventListener('click',function(){
     formatVal=S.perCourt;setSeg('formatSeg',S.perCourt);
     mixVal=S.mix;setSeg('mixSeg',S.mix);
     soundVal=S.endSound;setSeg('soundSeg',S.endSound);
-    $('mixHint').textContent=MIXTEXT[S.mix];
     roundMode='count';setSeg('roundModeSeg','count');
     $('countMode').style.display='';
     $('timeMode').style.display='none';
@@ -2408,7 +2535,6 @@ function newSession(){
   $('changeMin').value='2';
   setSeg('formatSeg',4);setSeg('mixSeg','social');setSeg('roundModeSeg','time');
   setSeg('soundSeg','beeps');
-  $('mixHint').textContent=MIXTEXT.social;
   $('countMode').style.display='none';
   $('timeMode').style.display='';
   $('setupErr').style.display='none';
@@ -2422,6 +2548,27 @@ function newSession(){
   window.scrollTo(0,0);
   toast('New session');
 }
+
+$('instHead').addEventListener('click',function(){
+  S.instOpen=!S.instOpen;
+  $('instWrap').hidden=!S.instOpen;
+  $('instHead').setAttribute('aria-expanded',S.instOpen?'true':'false');
+});
+$('instPrint').addEventListener('click',function(e){
+  e.stopPropagation();
+  const wasOpen=S.instOpen;
+  $('instWrap').hidden=false;
+  document.body.classList.add('print-inst');
+  window.print();
+  setTimeout(function(){
+    document.body.classList.remove('print-inst');
+    $('instWrap').hidden=!wasOpen;
+  },600);
+});
+window.addEventListener('afterprint',function(){
+  document.body.classList.remove('print-inst');
+  $('instWrap').hidden=!S.instOpen;
+});
 
 $('rosterHead').addEventListener('click',function(){
   S.rosterOpen=!S.rosterOpen;renderRoster();
@@ -2913,7 +3060,6 @@ document.addEventListener('keydown',function(e){
 $('sessionWhen').value=nowForInput();
 updatePCount();
 computeTimeRounds();
-$('mixHint').textContent=MIXTEXT.social;
 </script>
 </body>
 </html>
