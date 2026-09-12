@@ -145,6 +145,10 @@
   .pick .dup{font-size:.74rem;font-weight:700;color:var(--clay);white-space:nowrap}
 
   /* ---------- draw header ---------- */
+  .sessionhead{margin-bottom:14px}
+  .sessionhead h2{font-size:1.45rem;line-height:1.15}
+  .sessionhead h2:empty{display:none}
+  .sessionhead .when{font-size:.92rem;color:var(--ink-soft);font-weight:600;margin-top:2px}
   .drawbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
   .drawbar .right{display:flex;gap:8px;flex-wrap:wrap}
   .roundnav{display:flex;align-items:center;gap:10px;margin:6px 0 10px;flex-wrap:wrap}
@@ -248,6 +252,9 @@
   .pl.resting{background:var(--clay-soft);border-color:var(--clay)}
   .pl.resting .mark{background:var(--clay);color:#fff;border-color:var(--clay)}
   .pl .back{font-size:.72rem;font-weight:700;color:var(--clay);margin-left:6px}
+  .pl .pin{font-size:.72rem;font-weight:700;color:#fff;background:var(--teal);
+    border-radius:10px;padding:1px 7px;margin-left:6px}
+  .pl .apart{font-size:.72rem;font-weight:700;color:var(--clay);margin-left:6px}
   .pl.picked{outline:3px dashed var(--clay);outline-offset:2px}
   .pairbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   .pairhint{font-size:.84rem;color:var(--clay);font-weight:600}
@@ -294,7 +301,10 @@
   .timer.over{animation:pulse 1s steps(1,end) infinite}
   @keyframes pulse{50%{background:#2a1008}}
   @media (prefers-reduced-motion:reduce){.timer.over{animation:none;background:#2a1008}}
-  .tround{font-family:var(--disp);font-weight:800;font-size:1.1rem;color:#9aa08e;margin-bottom:4px}
+  .tsession{font-family:var(--disp);font-weight:800;font-size:clamp(1.15rem,3.4vw,1.6rem);
+    color:#e8eadf;letter-spacing:-.01em;margin-bottom:2px}
+  .tsession:empty{display:none}
+  .tround{font-family:var(--disp);font-weight:800;font-size:1.05rem;color:#9aa08e;margin-bottom:4px}
   .tclock{font-family:var(--disp);font-weight:800;font-size:clamp(4rem,21vw,8.4rem);
     line-height:.95;letter-spacing:-.03em;color:var(--lime);
     font-variant-numeric:tabular-nums;font-feature-settings:"tnum";margin:2px 0}
@@ -309,12 +319,15 @@
   .tbtn.big{background:var(--lime);color:var(--ink);border-color:var(--lime);min-width:160px;font-size:1.1rem}
   .tbtn.go{background:var(--teal);border-color:var(--teal-2)}
   .tbtn.ghost{background:transparent;color:#9aa08e}
-  .tdraw{width:100%;max-width:640px;margin:14px auto 18px;text-align:left}
-  .tc{display:flex;gap:14px;align-items:baseline;padding:10px 2px;border-bottom:1px solid #23261f}
-  .tc:last-child{border-bottom:none}
-  .tcn{flex:none;width:84px;font-size:.84rem;color:#8d9382;font-weight:600}
-  .tcp{flex:1;font-size:clamp(1.2rem,4.8vw,1.6rem);font-weight:700;color:#fff;line-height:1.25}
-  .tcp i{font-style:normal;color:#8d9382;font-weight:600;font-size:.72em;margin:0 7px}
+  .tdraw{width:100%;max-width:1400px;margin:14px auto 18px;text-align:left;
+    display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(264px,1fr))}
+  .tc{background:rgba(255,255,255,.055);border:1px solid #2b2e26;border-radius:12px;
+    padding:10px 14px}
+  .tcn{font-size:.8rem;color:#8d9382;font-weight:700;margin-bottom:2px}
+  .tcp{font-size:clamp(1.2rem,4.6vw,1.55rem);font-weight:700;color:#fff;line-height:1.3;
+    display:block}
+  .tcp i{font-style:normal;color:#8d9382;font-weight:600;font-size:.72em;margin:0 3px}
+  .tc.bye{grid-column:1 / -1;background:rgba(213,92,60,.13);border-color:#4b2b1f}
   .tc.bye .tcp{color:#eda183;font-size:clamp(1.05rem,3.9vw,1.3rem);font-weight:600}
 
   @media (max-width:560px){
@@ -357,6 +370,17 @@
     </div>
 
     <div class="card">
+      <div class="grid2">
+        <label class="fld">
+          <span class="lbl">Session name <small>optional</small></span>
+          <input type="text" id="sessionName" placeholder="Thursday morning mixer">
+        </label>
+        <label class="fld">
+          <span class="lbl">When</span>
+          <input type="datetime-local" id="sessionWhen">
+        </label>
+      </div>
+
       <label class="fld">
         <span class="lbl">Players <small id="pcount">0 players</small></span>
         <textarea id="players" rows="6" placeholder="One name per line&#10;Alex Nguyen&#10;Bri Taylor 3.5&#10;Cam&#10;Dana Okafor 4.0"></textarea>
@@ -373,7 +397,9 @@
         <button class="linklike" id="shotLogCopy" type="button" hidden>Copy this log</button>
         <pre class="shotlog" id="shotLog" hidden></pre>
       </div>
-      <p class="hint">Full names are fine — the courts show first names only, and add a
+      <p class="hint">Paste a spreadsheet column or a comma-separated list straight in and
+        it gets sorted onto one player per line.
+        Full names are fine — the courts show first names only, and add a
         surname initial if two people share one. Put a level after a name if you use them,
         like <b>Bri Taylor 3.5</b>. Levels are optional and only matter if you pick one of
         the level-aware mixes below. If the list needs two screenshots, read them both in
@@ -384,7 +410,7 @@
       <div class="grid2">
         <label class="fld">
           <span class="lbl">Courts in use</span>
-          <input type="number" id="courts" min="1" max="20" value="2" inputmode="numeric">
+          <input type="number" id="courts" min="1" max="20" value="3" inputmode="numeric">
         </label>
         <label class="fld">
           <span class="lbl">Format</span>
@@ -424,15 +450,33 @@
       <div id="timeMode">
         <label class="fld">
           <span class="lbl">Session length <small>minutes</small></span>
-          <input type="number" id="totalMin" min="5" max="600" value="90" inputmode="numeric">
+          <input type="number" id="totalMin" min="5" max="600" value="120" inputmode="numeric">
         </label>
         <div class="computed" id="timeComputed"></div>
       </div>
 
-      <label class="fld">
-        <span class="lbl">Minutes per game <small>the on-court timer uses this</small></span>
-        <input type="number" id="perMin" min="1" max="60" value="12" inputmode="numeric">
+      <div class="grid2">
+        <label class="fld">
+          <span class="lbl">Minutes per game <small>the on-court timer uses this</small></span>
+          <input type="number" id="perMin" min="1" max="60" value="12" inputmode="numeric">
+        </label>
+        <label class="fld">
+          <span class="lbl">Changeover <small>minutes between games</small></span>
+          <input type="number" id="changeMin" min="0" max="30" value="2" inputmode="numeric">
+        </label>
+      </div>
+
+      <label class="fld" style="margin-bottom:8px">
+        <span class="lbl">When a game runs out of time</span>
+        <div class="seg" id="soundSeg">
+          <button type="button" data-v="beeps" class="on">Beeps</button>
+          <button type="button" data-v="siren">Siren</button>
+          <button type="button" data-v="silent">Silent</button>
+        </div>
       </label>
+      <p class="hint">The phone vibrates as well, where it can.
+        <button class="linklike" id="soundTry" type="button">Try it</button>
+      </p>
 
       <div class="err" id="setupErr"></div>
       <button class="btn primary" id="generateBtn" style="margin-top:6px;width:100%;padding:14px;font-size:1.05rem">
@@ -443,6 +487,10 @@
 
   <!-- ================= DRAW ================= -->
   <section id="draw" hidden>
+    <div class="sessionhead" id="sessionHead">
+      <h2 id="sessionTitle"></h2>
+      <div class="when" id="sessionWhenText"></div>
+    </div>
     <div class="drawbar noprint">
       <div class="seg" id="viewSeg">
         <button type="button" data-v="round" class="on">One round</button>
@@ -454,6 +502,7 @@
         <button class="btn sm" id="printBtn">Print</button>
         <button class="btn sm" id="reshuffleBtn">Redraw everything</button>
         <button class="btn sm dark" id="editBtn">Change setup</button>
+        <button class="btn sm danger" id="newSessionBtn">New session</button>
       </div>
     </div>
 
@@ -480,18 +529,11 @@
 
     <div class="card panel noprint">
       <button type="button" class="ph" id="rosterHead" aria-expanded="false" aria-controls="rosterWrap">
-        <h3>Players and no-shows</h3>
+        <h3>Players</h3>
         <span class="phmeta" id="rosterMeta"></span>
         <span class="chev" aria-hidden="true">&#9662;</span>
       </button>
       <div id="rosterWrap" hidden>
-        <p class="caption">Full names are listed here; the courts show first names only,
-          adding a surname initial when two people share one.
-          Tap a player when they need a rest, or when they head home.
-          A rest brings them back on by itself after a round or two; going home takes them
-          out for good. Tap anyone who is off to put them straight back on. Finished rounds
-          stay put — a round locks when you move past it with the arrow, or when you start
-          its timer — and everything after that redraws around whoever's available.</p>
         <div class="roster" id="roster"></div>
         <div class="pairbar">
           <button class="btn sm" id="pairBtn">Link a training pair</button>
@@ -524,6 +566,7 @@
 
 <!-- ================= GAME TIMER ================= -->
 <div class="timer" id="timer" hidden>
+  <div class="tsession" id="tSession"></div>
   <div class="tround" id="tRound"></div>
   <div class="tclock" id="tClock">12:00</div>
   <div class="tstate" id="tState"></div>
@@ -534,6 +577,7 @@
   <div class="tdraw" id="tDraw"></div>
   <div class="tctrl">
     <button class="tbtn go" id="tNext">Finish round</button>
+    <button class="tbtn ghost" id="tSound">Sound: beeps</button>
     <button class="tbtn ghost" id="tClose">Close</button>
   </div>
 </div>
@@ -584,11 +628,16 @@ function chooseByes(active,numByes,st,lastByeSet){
   return arr.slice(0,numByes);
 }
 
-function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg){
+function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg,pinMap){
   lockMap=lockMap||{};
   cfg=cfg||{};
+  pinMap=pinMap||{};
   const PW=4,OW=1;              // partner variety weighted above opponent variety
   const LOCKPEN=1e6;            // splitting a linked pair costs more than anything else
+  const PINPEN=1e6;             // so does taking someone off the court they were put on
+  const AVOIDPEN=4e5;           // keeping two people apart beats any variety gain
+  const AV=cfg.avoidMap||{};
+  function avoids(x,y){const s=AV[x];return !!(s&&s[y]);}
   const mix=cfg.mix||'social';
   const RT=cfg.ratings||[];
   const RW=mix==='even'?6:(mix==='similar'?3:0);
@@ -599,7 +648,15 @@ function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg){
   const usedCourts=Math.floor(playable/perCourt);
   const playSlots=usedCourts*perCourt;
   const numByes=active.length-playSlots;
-  const byes=chooseByes(active,numByes,st,lastByeSet);
+  /* anyone placed on a court by hand has to be on it, so they cannot sit out */
+  const pinned={},pinnedList=[];
+  active.forEach(function(p){
+    const c=pinMap[p];
+    if(typeof c==='number'&&c>=0&&c<usedCourts){pinned[p]=c;pinnedList.push(p);}
+  });
+  let byePool=active.filter(function(p){return pinned[p]===undefined;});
+  if(byePool.length<numByes)byePool=active;          /* too many placed by hand to honour */
+  const byes=chooseByes(byePool,numByes,st,lastByeSet);
   const byeSet=new Set(byes);
   const playing=active.filter(function(p){return !byeSet.has(p);});
   const S=playSlots;
@@ -621,10 +678,30 @@ function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg){
   /* seed with linked pairs already sitting in team slots:
      team slots are (4k,4k+1) and (4k+2,4k+3) */
   function seedSlots(){
-    const out=[];
-    for(const pr of shuffle(lockedPairs.slice())){out.push(pr[0],pr[1]);}
-    for(const s of shuffle(loose.slice()))out.push(s);
-    return out;
+    const slots=new Array(S).fill(-1);
+    const placed={};
+    /* hand-placed players go into their own court first */
+    for(const p of shuffle(pinnedList.slice())){
+      if(byeSet.has(p))continue;
+      const c=pinned[p];
+      for(let k=0;k<perCourt;k++){
+        const idx=c*perCourt+k;
+        if(slots[idx]===-1){slots[idx]=p;placed[p]=1;break;}
+      }
+    }
+    /* linked pairs into a free pair of team slots */
+    for(const pr of shuffle(lockedPairs.slice())){
+      if(placed[pr[0]]||placed[pr[1]])continue;
+      for(let t=0;t<S;t+=2){
+        if(slots[t]===-1&&slots[t+1]===-1){
+          slots[t]=pr[0];slots[t+1]=pr[1];placed[pr[0]]=1;placed[pr[1]]=1;break;
+        }
+      }
+    }
+    const rest=shuffle(playing.filter(function(p){return !placed[p];}));
+    let r=0;
+    for(let i=0;i<S;i++)if(slots[i]===-1)slots[i]=rest[r++];
+    return slots;
   }
   function sameTeam(i,j){return (i>>1)===(j>>1);}
   function pcCost(x,y){return lockMap[x]===y?0:sq(st.pc[x][y])*PW;}
@@ -634,11 +711,22 @@ function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg){
     for(const pr of lockedPairs){
       if(!sameTeam(pos[pr[0]],pos[pr[1]]))c+=LOCKPEN;
     }
+    for(const p of pinnedList){
+      const at=pos[p];
+      if(at===undefined||at<0)continue;
+      if(Math.floor(at/perCourt)!==pinned[p])c+=PINPEN;
+    }
     for(let k=0;k<usedCourts;k++){
       if(perCourt===4){
         const a0=slots[4*k],a1=slots[4*k+1],b0=slots[4*k+2],b1=slots[4*k+3];
         c+=pcCost(a0,a1)+pcCost(b0,b1);
         c+=(sq(st.oc[a0][b0])+sq(st.oc[a0][b1])+sq(st.oc[a1][b0])+sq(st.oc[a1][b1]))*OW;
+        if(avoids(a0,a1))c+=AVOIDPEN;
+        if(avoids(b0,b1))c+=AVOIDPEN;
+        if(avoids(a0,b0))c+=AVOIDPEN;
+        if(avoids(a0,b1))c+=AVOIDPEN;
+        if(avoids(a1,b0))c+=AVOIDPEN;
+        if(avoids(a1,b1))c+=AVOIDPEN;
         if(RW){
           if(mix==='even'){
             c+=RW*sq((rt(a0)+rt(a1))-(rt(b0)+rt(b1)));
@@ -651,6 +739,7 @@ function genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg){
       }else{
         const a0=slots[2*k],b0=slots[2*k+1];
         c+=sq(st.oc[a0][b0])*OW;
+        if(avoids(a0,b0))c+=AVOIDPEN;
         if(RW)c+=RW*sq(rt(a0)-rt(b0));
       }
     }
@@ -698,7 +787,8 @@ function generateRounds(n,activeSrc,courts,totalRounds,perCourt,lockedRounds,loc
   let lastByeSet=lockedRounds.length?new Set(lockedRounds[lockedRounds.length-1].byes):new Set();
   for(let r=lockedRounds.length;r<totalRounds;r++){
     const active=typeof activeSrc==='function'?activeSrc(r):activeSrc;
-    const round=genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg);
+    const pins=(cfg.pins&&cfg.pins.round===r)?cfg.pins.map:null;
+    const round=genRound(st,active,courts,perCourt,lastByeSet,lockMap,cfg,pins);
     applyRound(st,round);
     out.push(round);
     lastByeSet=new Set(round.byes);
@@ -710,21 +800,43 @@ function generateRounds(n,activeSrc,courts,totalRounds,perCourt,lockedRounds,loc
    2. APP STATE
    ============================================================ */
 const S={
+  sessionName:'',
+  sessionWhen:'',    // as the date box gives it, e.g. 2026-09-12T09:00
   players:[],        // {name, active, rating:number|null}
-  courts:2,
+  courts:3,
   perCourt:4,
   rounds:8,
   mix:'social',
   minutes:12,
+  changeover:2,
+  endSound:'beeps',   // beeps | siren | silent
   schedule:[],
   current:0,         // round in focus
   locked:0,          // number of leading rounds frozen
   view:'round',
   rosterOpen:false,
   statsOpen:false,
+  pins:null,         // {round:n, map:{playerIndex:courtIndex}} — one round only
+  avoid:[],          // [[i,j],...] pairs to keep off the same court
   pairs:[]
 };
 const $=function(id){return document.getElementById(id);};
+
+function pad2(n){return (n<10?'0':'')+n;}
+function nowForInput(){
+  const d=new Date();
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+
+         'T'+pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+function whenText(v){
+  if(!v)return '';
+  const d=new Date(v);
+  if(isNaN(d.getTime()))return v;
+  try{
+    return d.toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',
+      hour:'numeric',minute:'2-digit'});
+  }catch(e){return v;}
+}
 
 const PAIRCOLS=['#13514B','#D55C3C','#7c8c00','#6b4fbb','#b8860b','#1d6e65'];
 function lockMapNow(){
@@ -741,7 +853,39 @@ function ratingsArr(){
   const fallback=rated.length?rated.reduce(function(a,b){return a+b;},0)/rated.length:3;
   return S.players.map(function(p){return typeof p.rating==='number'?p.rating:fallback;});
 }
-function cfgNow(){return {mix:S.mix,ratings:ratingsArr()};}
+function avoidMapNow(){
+  const m={};
+  S.avoid.forEach(function(pr){
+    (m[pr[0]]=m[pr[0]]||{})[pr[1]]=1;
+    (m[pr[1]]=m[pr[1]]||{})[pr[0]]=1;
+  });
+  return m;
+}
+function isAvoided(i,j){
+  return S.avoid.some(function(pr){
+    return (pr[0]===i&&pr[1]===j)||(pr[0]===j&&pr[1]===i);
+  });
+}
+function avoidedWith(i){
+  const out=[];
+  S.avoid.forEach(function(pr){
+    if(pr[0]===i)out.push(pr[1]);
+    else if(pr[1]===i)out.push(pr[0]);
+  });
+  return out;
+}
+/* a hand placement only stands for the round it was made for */
+function livePins(){
+  if(S.pins&&S.pins.round<S.locked)S.pins=null;
+  return S.pins;
+}
+function pinnedCourt(i){
+  const p=livePins();
+  return (p&&typeof p.map[i]==='number')?p.map[i]:null;
+}
+function cfgNow(){
+  return {mix:S.mix,ratings:ratingsArr(),avoidMap:avoidMapNow(),pins:livePins()};
+}
 
 /* ============================================================
    3. SAVING (this device only, no network)
@@ -758,9 +902,9 @@ function saveNow(){
   savePending=0;
   if($('draw').hidden)return;
   const data=JSON.stringify({
-    v:2,players:S.players,courts:S.courts,perCourt:S.perCourt,rounds:S.rounds,
-    mix:S.mix,minutes:S.minutes,schedule:S.schedule,current:S.current,
-    locked:S.locked,pairs:S.pairs,
+    v:2,sessionName:S.sessionName,sessionWhen:S.sessionWhen,players:S.players,courts:S.courts,perCourt:S.perCourt,rounds:S.rounds,
+    mix:S.mix,minutes:S.minutes,changeover:S.changeover,endSound:S.endSound,schedule:S.schedule,current:S.current,
+    locked:S.locked,pairs:S.pairs,pins:S.pins,avoid:S.avoid,
     timer:{running:T.running,endsAt:T.endsAt,remain:T.remain,open:!$('timer').hidden},
     ts:Date.now()
   });
@@ -1201,6 +1345,43 @@ function findDup(name,list){
   return null;
 }
 
+function tickListBox(title,body,items,okLabel){
+  return new Promise(function(resolve){
+    const back=document.createElement('div');back.className='dlgback';
+    const box=document.createElement('div');box.className='dlg';
+    const h3=document.createElement('h3');h3.textContent=title;
+    const p=document.createElement('p');p.textContent=body;
+    box.appendChild(h3);box.appendChild(p);
+    const list=document.createElement('div');list.className='picklist';
+    const state=[];
+    items.forEach(function(it){
+      const el=document.createElement('div');
+      el.className='pick '+(it.on?'on':'off');
+      el.innerHTML='<span class="box">'+(it.on?'\u2713':'')+'</span><span class="nm"></span>';
+      el.querySelector('.nm').textContent=it.label;
+      const rec={key:it.key,on:!!it.on};
+      el.addEventListener('click',function(){
+        rec.on=!rec.on;
+        el.className='pick '+(rec.on?'on':'off');
+        el.firstChild.textContent=rec.on?'\u2713':'';
+      });
+      state.push(rec);list.appendChild(el);
+    });
+    box.appendChild(list);
+    const rowb=document.createElement('div');rowb.className='row';
+    const no=document.createElement('button');no.className='btn';no.textContent='Cancel';
+    const yes=document.createElement('button');yes.className='btn primary';yes.textContent=okLabel||'Save';
+    rowb.appendChild(no);rowb.appendChild(yes);box.appendChild(rowb);
+    back.appendChild(box);document.body.appendChild(back);
+    function done(v){document.body.removeChild(back);resolve(v);}
+    no.addEventListener('click',function(){done(null);});
+    yes.addEventListener('click',function(){
+      done(state.filter(function(r){return r.on;}).map(function(r){return r.key;}));
+    });
+    back.addEventListener('click',function(e){if(e.target===back)done(null);});
+  });
+}
+
 function pickNamesBox(good,junk){
   return new Promise(function(resolve){
     const back=document.createElement('div');back.className='dlgback';
@@ -1397,12 +1578,110 @@ function addNamesToBox(names){
 /* ============================================================
    6. SETUP SCREEN
    ============================================================ */
-let formatVal=4,roundMode='time',mixVal='social';
+let formatVal=4,roundMode='time',mixVal='social',soundVal='beeps';
 const MIXTEXT={
   social:"Ignores levels entirely. Everyone plays with and against everyone, as evenly as the numbers allow.",
   even:"Still mixes everyone up, but tries to make the two sides of each net add up to about the same level.",
   similar:"Tries to keep each court to players of a similar level, so the strong courts and the gentler courts sort themselves out."
 };
+
+/* ---------------------------------------------------------------
+   Pasting a spreadsheet or CSV into the players box.
+   One row in, one player out. Within a row the delimiter separates
+   columns, not people: the first text column is the name and a
+   number from 1 to 7 in any other column becomes their level.
+   A single line of comma-separated names is a list of people.
+   --------------------------------------------------------------- */
+function splitDelimited(line,delim){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){
+    const c=line.charAt(i);
+    if(q){
+      if(c==='"'){ if(line.charAt(i+1)==='"'){cur+='"';i++;} else q=false; }
+      else cur+=c;
+    }else if(c==='"')q=true;
+    else if(c===delim){out.push(cur);cur='';}
+    else cur+=c;
+  }
+  out.push(cur);
+  return out.map(function(s){return s.replace(/\s+/g,' ').trim();});
+}
+const CSV_HEADER=/^(name|full name|player|players|member|members|first|first name|last|last name|surname|given|level|rating|grade|dupr|skill|email|e-mail|phone|mobile|status|paid|team|club)$/i;
+function looksLikeHeader(cells){
+  let hits=0;
+  cells.forEach(function(c){if(CSV_HEADER.test(c))hits++;});
+  return hits>0&&hits>=Math.ceil(cells.length/2);
+}
+function tidyCell(s){
+  const t=String(s||'').replace(/^"+|"+$/g,'').replace(/\s+/g,' ').trim();
+  return /[A-Za-z]/.test(t)?t:'';
+}
+function tidyPasted(text){
+  let t=String(text||'').replace(/\r\n?/g,'\n').trim();
+  if(!t)return [];
+  const lines=t.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  let delim='\t';
+  if(t.indexOf('\t')<0){
+    if(t.indexOf(';')>-1)delim=';';
+    else if(t.indexOf('|')>-1)delim='|';
+    else delim=',';
+  }
+  /* a single line of commas is a list of people, not one person's columns */
+  if(lines.length===1&&delim===','){
+    return splitDelimited(lines[0],',').map(tidyCell).filter(Boolean);
+  }
+  const rows=[];
+  lines.forEach(function(line,i){
+    const cells=splitDelimited(line,delim).filter(function(s){return s!=='';});
+    if(!cells.length)return;
+    if(i===0&&looksLikeHeader(cells))return;
+    rows.push(cells);
+  });
+  /* "Percival, Al" — every row two single words and no level anywhere,
+     which is the surname-first convention, so put it back the right way round */
+  const surnameFirst=rows.length>1&&rows.every(function(cells){
+    return cells.length===2&&
+           cells.every(function(c){return /^[^\s]+$/.test(c)&&/[A-Za-z]/.test(c);}) &&
+           !cells.some(function(c){return /^[1-7](\.[0-9]{1,2})?$/.test(c);});
+  });
+  const out=[];
+  rows.forEach(function(cells){
+    if(surnameFirst){
+      const v=tidyCell(cells[1]+' '+cells[0]);
+      if(v)out.push(v);
+      return;
+    }
+    let name='',level='';
+    cells.forEach(function(c){
+      if(/^[1-7](\.[0-9]{1,2})?$/.test(c)){ if(!level)level=c; return; }
+      if(!name&&!/@/.test(c)&&/[A-Za-z]/.test(c))name=tidyCell(c);
+    });
+    if(name)out.push(name+(level?' '+level:''));
+  });
+  return out;
+}
+function insertIntoPlayers(textToAdd){
+  const box=$('players');
+  const start=box.selectionStart,end=box.selectionEnd;
+  const before=box.value.slice(0,start),after=box.value.slice(end);
+  const lead=(before&&!/\n$/.test(before))?'\n':'';
+  const trail=(after&&!/^\n/.test(after))?'\n':'';
+  box.value=before+lead+textToAdd+trail+after;
+  const pos=(before+lead+textToAdd).length;
+  try{box.setSelectionRange(pos,pos);}catch(e){}
+  updatePCount();
+}
+$('players').addEventListener('paste',function(e){
+  const cb=e.clipboardData||window.clipboardData;
+  if(!cb)return;
+  const raw=cb.getData('text');
+  if(!raw||!/[,;|\t]/.test(raw))return;          /* plain list — let it paste as it is */
+  const rows=tidyPasted(raw);
+  if(!rows.length)return;
+  e.preventDefault();
+  insertIntoPlayers(rows.join('\n'));
+  toast(rows.length+' name'+(rows.length===1?'':'s')+' tidied onto their own lines');
+});
 
 function updatePCount(){
   const list=splitEntries($('players').value).map(parseEntry);
@@ -1410,23 +1689,40 @@ function updatePCount(){
   $('pcount').textContent=list.length+(list.length===1?' player':' players')+
     (rated?' \u00b7 '+rated+' with a level':'');
 }
+/* players need a moment to swap courts between rounds; the last round has
+   no changeover after it, hence the (r-1) */
+function changeoverMin(){
+  const v=+$('changeMin').value;
+  return (isFinite(v)&&v>0)?v:0;
+}
 function computeTimeRounds(){
-  const tot=+$('totalMin').value||0,per=+$('perMin').value||0;
-  const r=per>0?Math.max(1,Math.floor(tot/per)):0;
-  $('timeComputed').textContent=per>0
-    ? 'That comes to '+r+' round'+(r===1?'':'s')+' of '+per+' minutes'
-    : 'Set the minutes per game below';
+  const tot=+$('totalMin').value||0,per=+$('perMin').value||0,ch=changeoverMin();
+  if(per<=0){$('timeComputed').textContent='Set the minutes per game below';return 0;}
+  const r=Math.max(1,Math.floor((tot+ch)/(per+ch)));
+  const used=r*per+(r-1)*ch;
+  $('timeComputed').textContent=
+    'That comes to '+r+' round'+(r===1?'':'s')+' of '+per+' minutes, '+
+    (ch?'allowing '+ch+' minute'+(ch===1?'':'s')+' to change over':'with no changeover')+
+    ' \u2014 '+used+' minutes of '+tot;
   return r;
 }
 $('players').addEventListener('input',updatePCount);
 $('totalMin').addEventListener('input',computeTimeRounds);
 $('perMin').addEventListener('input',computeTimeRounds);
+$('changeMin').addEventListener('input',computeTimeRounds);
 
 $('formatSeg').addEventListener('click',function(e){
   const b=e.target.closest('button');if(!b)return;
   formatVal=+b.dataset.v;
   Array.prototype.forEach.call($('formatSeg').children,function(c){c.classList.toggle('on',c===b);});
 });
+$('soundSeg').addEventListener('click',function(e){
+  const b=e.target.closest('button');if(!b)return;
+  soundVal=b.dataset.v;S.endSound=soundVal;
+  Array.prototype.forEach.call($('soundSeg').children,function(c){c.classList.toggle('on',c===b);});
+  previewSound();
+});
+$('soundTry').addEventListener('click',function(){S.endSound=soundVal;previewSound();});
 $('mixSeg').addEventListener('click',function(e){
   const b=e.target.closest('button');if(!b)return;
   mixVal=b.dataset.v;
@@ -1488,7 +1784,10 @@ $('generateBtn').addEventListener('click',function(){
   }
   pairMode=false;pairPick=-1;
 
+  S.sessionName=$('sessionName').value.trim();
+  S.sessionWhen=$('sessionWhen').value;
   S.courts=courts;S.perCourt=perCourt;S.rounds=rounds;S.minutes=minutes;S.mix=mixVal;
+  S.changeover=changeoverMin();S.endSound=soundVal;
   S.current=0;S.locked=0;S.view='round';
   S.schedule=generateRounds(S.players.length,activeAt,courts,rounds,perCourt,[],lockMapNow(),cfgNow());
   timerReset(true);
@@ -1610,6 +1909,10 @@ function rebuildAndTell(){
    8. RENDER
    ============================================================ */
 function renderDraw(){
+  livePins();
+  $('sessionTitle').textContent=S.sessionName||'';
+  $('sessionWhenText').textContent=whenText(S.sessionWhen);
+  $('sessionHead').hidden=!(S.sessionName||S.sessionWhen);
   refreshDisplayNames();
   tDrawStamp='';
   $('roundView').style.display=S.view==='round'?'':'none';
@@ -1721,7 +2024,12 @@ function renderRoster(){
     const lk=pi>-1?'\u{1F517} ':'';
     const rr=typeof p.rating==='number'?'<span class="rt">'+p.rating+'</span>':'';
     const back=(stt==='resting')?'<span class="back">back R'+(p.restUntil+1)+'</span>':'';
-    el.innerHTML='<span>'+lk+esc(p.name)+rr+back+'</span>'+
+    const pc=pinnedCourt(i);
+    const pin=(pc!==null&&stt==='on')?'<span class="pin">court '+(pc+1)+'</span>':'';
+    const av=avoidedWith(i);
+    const apart=av.length?'<span class="apart">not with '+
+      esc(av.length===1?dn(av[0]):av.length+' others')+'</span>':'';
+    el.innerHTML='<span>'+lk+esc(p.name)+rr+back+pin+apart+'</span>'+
       '<span class="mark">'+(stt==='gone'?'\u2715':(stt==='resting'?'\u23F8':'\u2713'))+'</span>';
     if(pi>-1){
       el.style.boxShadow='0 0 0 3px '+PAIRCOLS[pi%PAIRCOLS.length];
@@ -1752,12 +2060,16 @@ function playerTap(i,stt){
     applyAvailability(i,{active:true,restUntil:null},p.name+' is back on');
     return;
   }
-  chooseBox(p.name,'What are they doing?',[
-    {key:'r1',label:'Sitting out the next round',style:'primary'},
+  chooseBox(p.name,'What would you like to do?',[
+    {key:'court',label:'Put on a court\u2026',style:'primary'},
+    {key:'apart',label:'Keep apart from\u2026'},
+    {key:'r1',label:'Sitting out the next round'},
     {key:'r2',label:'Sitting out the next two rounds'},
     {key:'gone',label:'Gone home for the day',style:'danger'}
   ]).then(function(k){
     if(!k)return;
+    if(k==='court')return chooseCourtFor(i);
+    if(k==='apart')return chooseApartFor(i);
     if(k==='gone')applyAvailability(i,{active:false,restUntil:null},p.name+' is out for the rest of the day');
     else{
       const n=k==='r1'?1:2;
@@ -1765,6 +2077,69 @@ function playerTap(i,stt){
         p.name+' sits out '+(n===1?'the next round':'the next two rounds')+', back for round '+(S.locked+n+1));
     }
   });
+}
+
+/* ---- putting somebody on a particular court, for the next round ---- */
+function pinsOnCourt(c){
+  const p=livePins();
+  if(!p)return 0;
+  let n=0;
+  for(const k in p.map)if(p.map[k]===c)n++;
+  return n;
+}
+function chooseCourtFor(i){
+  const p=S.players[i];
+  const at=pinnedCourt(i);
+  const opts=[];
+  for(let c=0;c<S.courts;c++){
+    const n=pinsOnCourt(c)-(at===c?1:0);
+    opts.push({key:'c'+c,style:at===c?'dark':'',
+      label:'Court '+(c+1)+(at===c?'  \u2713 already here':(n?'  ('+n+' placed)':''))});
+  }
+  if(at!==null)opts.push({key:'off',label:'Leave it to the draw',style:'danger'});
+  return chooseBox('Put '+p.name+' on a court',
+    'For round '+(S.locked+1)+' only. The rest of that round is drawn around whoever you place.',
+    opts).then(function(k){
+      if(!k)return;
+      if(!S.pins||S.pins.round!==S.locked)S.pins={round:S.locked,map:{}};
+      if(k==='off'){
+        delete S.pins.map[i];
+        if(!Object.keys(S.pins.map).length)S.pins=null;
+        rebuildFromLock();renderDraw();
+        toast(p.name+' is back in the draw');
+        return;
+      }
+      const c=+k.slice(1);
+      if(pinsOnCourt(c)-(pinnedCourt(i)===c?1:0)>=S.perCourt){
+        toast('Court '+(c+1)+' is already full');
+        return;
+      }
+      S.pins.map[i]=c;
+      rebuildFromLock();renderDraw();
+      toast(p.name+' is on court '+(c+1)+' for round '+(S.locked+1));
+    });
+}
+
+/* ---- keeping two people off the same court ---- */
+function chooseApartFor(i){
+  const p=S.players[i];
+  const items=[];
+  S.players.forEach(function(q,j){
+    if(j===i||!q.active)return;
+    items.push({key:j,label:q.name,on:isAvoided(i,j)});
+  });
+  if(!items.length){toast('Nobody else to keep them apart from');return;}
+  return tickListBox('Keep '+p.name+' apart from\u2026',
+    'Tick anyone they should not share a court with. The draw works around it for the '+
+    'rest of the session.',items,'Save').then(function(chosen){
+      if(!chosen)return;
+      S.avoid=S.avoid.filter(function(pr){return pr[0]!==i&&pr[1]!==i;});
+      chosen.forEach(function(j){S.avoid.push([i,j]);});
+      rebuildFromLock();renderDraw();
+      toast(chosen.length
+        ? p.name+' kept apart from '+chosen.map(function(j){return nm(j);}).join(', ')
+        : p.name+' no longer kept apart from anyone');
+    });
 }
 /* apply a change, but refuse it if it would empty the court */
 function applyAvailability(i,change,msg){
@@ -1856,6 +2231,19 @@ function renderStats(){
     if(gapN)
       line+='<span class="stat">'+dot('#b8860b')+'Average level gap across the net: <b>'+
         (gapSum/gapN).toFixed(2)+'</b></span>';
+  }
+  if(S.avoid.length){
+    let clashes=0;
+    /* only the rounds the rule can still affect — a clash in a round already
+       played is history, not a failure */
+    S.schedule.slice(S.locked).forEach(function(rd){rd.courts.forEach(function(ct){
+      const on=ct.teamA.concat(ct.teamB);
+      for(let a=0;a<on.length;a++)for(let b=a+1;b<on.length;b++)
+        if(isAvoided(on[a],on[b]))clashes++;
+    });});
+    line+='<span class="stat">'+dot('#D55C3C')+'Kept apart: <b>'+S.avoid.length+'</b> pair'+
+      (S.avoid.length===1?'':'s')+(clashes?', <b>'+clashes+'</b> unavoidable in the rounds left':', all honoured')+
+      '</span>';
   }
   line+='<span class="stat">'+dot('#1d6e65')+'Rounds: <b>'+S.schedule.length+'</b> ('+
     S.locked+' played)</span>';
@@ -1949,14 +2337,18 @@ $('editBtn').addEventListener('click',function(){
     : 'You can change anything and rebuild. Nothing has been played yet, so there is nothing to lose.';
   confirmBox('Change the setup?',msg,'Change setup',S.locked>0).then(function(ok){
     if(!ok)return;
+    $('sessionName').value=S.sessionName||'';
+    $('sessionWhen').value=S.sessionWhen||nowForInput();
     $('players').value=S.players.map(function(p){
       return p.name+(typeof p.rating==='number'?' '+p.rating:'');
     }).join('\n');
     $('courts').value=S.courts;
     $('rounds').value=S.rounds;
     $('perMin').value=S.minutes;
+    $('changeMin').value=S.changeover;
     formatVal=S.perCourt;setSeg('formatSeg',S.perCourt);
     mixVal=S.mix;setSeg('mixSeg',S.mix);
+    soundVal=S.endSound;setSeg('soundSeg',S.endSound);
     $('mixHint').textContent=MIXTEXT[S.mix];
     roundMode='count';setSeg('roundModeSeg','count');
     $('countMode').style.display='';
@@ -1967,6 +2359,51 @@ $('editBtn').addEventListener('click',function(){
     window.scrollTo(0,0);
   });
 });
+$('newSessionBtn').addEventListener('click',function(){
+  confirmBox('Start a new session?',
+    'This clears the players, the draw and everything that has been played, and begins '+
+    'again with an empty setup. It cannot be undone.',
+    'Start a new session',true).then(function(ok){
+      if(ok)newSession();
+    });
+});
+function newSession(){
+  clearSaved();
+  timerReset(true);
+  T.round=null;
+  if(!$('timer').hidden)closeTimer();
+  S.sessionName='';S.sessionWhen=nowForInput();
+  S.players=[];S.pairs=[];S.schedule=[];S.pins=null;S.avoid=[];
+  S.courts=3;S.perCourt=4;S.rounds=8;S.mix='social';S.minutes=12;S.changeover=2;
+  S.endSound='beeps';soundVal='beeps';
+  S.current=0;S.locked=0;S.view='round';S.rosterOpen=false;S.statsOpen=false;
+  pairMode=false;pairPick=-1;
+  formatVal=4;mixVal='social';roundMode='time';
+  $('sessionName').value='';
+  $('sessionWhen').value=S.sessionWhen;
+  $('players').value='';
+  $('courts').value='3';
+  $('rounds').value='8';
+  $('totalMin').value='120';
+  $('perMin').value='12';
+  $('changeMin').value='2';
+  setSeg('formatSeg',4);setSeg('mixSeg','social');setSeg('roundModeSeg','time');
+  setSeg('soundSeg','beeps');
+  $('mixHint').textContent=MIXTEXT.social;
+  $('countMode').style.display='none';
+  $('timeMode').style.display='';
+  $('setupErr').style.display='none';
+  $('addName').value='';
+  shotState('');shotBar(null);
+  ocrLog.length=0;$('shotLog').textContent='';$('shotLogWrap').hidden=true;
+  $('resumeCard').hidden=true;
+  $('draw').hidden=true;
+  $('setup').hidden=false;
+  updatePCount();computeTimeRounds();
+  window.scrollTo(0,0);
+  toast('New session');
+}
+
 $('rosterHead').addEventListener('click',function(){
   S.rosterOpen=!S.rosterOpen;renderRoster();
 });
@@ -1994,7 +2431,7 @@ $('addName').addEventListener('keydown',function(e){
    10. GAME TIMER
    ============================================================ */
 const T={running:false,endsAt:0,remain:12*60000,round:null,warned:false,over:false,
-         wake:null,iv:null,ac:null};
+         wake:null,iv:null,ac:null,tones:[],autoT:null,nextRound:0};
 
 function fmt(ms){
   const neg=ms<0;
@@ -2002,26 +2439,102 @@ function fmt(ms){
   const m=Math.floor(s/60),ss=s%60;
   return (neg?'+':'')+m+':'+(ss<10?'0':'')+ss;
 }
-function beep(times){
+function audioCtx(){
   try{
     if(!T.ac){
       const AC=window.AudioContext||window.webkitAudioContext;
-      if(!AC)return;
+      if(!AC)return null;
       T.ac=new AC();
     }
     if(T.ac.state==='suspended')T.ac.resume();
-    for(let i=0;i<times;i++){
-      const o=T.ac.createOscillator(),g=T.ac.createGain();
-      const t0=T.ac.currentTime+i*0.42;
-      o.frequency.value=880;o.type='sine';
-      g.gain.setValueAtTime(0.0001,t0);
-      g.gain.exponentialRampToValueAtTime(0.35,t0+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001,t0+0.32);
-      o.connect(g);g.connect(T.ac.destination);
-      o.start(t0);o.stop(t0+0.35);
+    return T.ac;
+  }catch(e){return null;}
+}
+function buzz(pattern){
+  try{if(navigator.vibrate)navigator.vibrate(pattern);}catch(e){}
+}
+/* every tone is registered so it can be silenced the moment the timer is shut */
+function trackTone(o,g){
+  const rec={o:o,g:g};
+  T.tones.push(rec);
+  try{o.onended=function(){const i=T.tones.indexOf(rec);if(i>-1)T.tones.splice(i,1);};}catch(e){}
+}
+function stopSounds(){
+  const ac=T.ac;
+  T.tones.forEach(function(rec){
+    try{
+      if(ac&&rec.g){
+        rec.g.gain.cancelScheduledValues(ac.currentTime);
+        rec.g.gain.setValueAtTime(0.0001,ac.currentTime);
+      }
+    }catch(e){}
+    try{rec.o.stop(ac?ac.currentTime:0);}catch(e){}
+  });
+  T.tones=[];
+  try{if(navigator.vibrate)navigator.vibrate(0);}catch(e){}
+}
+function beep(times){
+  const ac=audioCtx();
+  if(ac){
+    try{
+      for(let i=0;i<times;i++){
+        const o=ac.createOscillator(),g=ac.createGain();
+        const t0=ac.currentTime+i*0.42;
+        o.frequency.value=880;o.type='sine';
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(0.35,t0+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+0.32);
+        o.connect(g);g.connect(ac.destination);
+        o.start(t0);o.stop(t0+0.35);
+        trackTone(o,g);
+      }
+    }catch(e){}
+  }
+  buzz(times>1?[220,120,220,120,220]:180);
+}
+/* a wailing siren, built from a sweeping tone — nothing is downloaded */
+function siren(cycles){
+  const ac=audioCtx();
+  if(!ac){buzz([600,200,600,200,600]);return;}
+  cycles=cycles||3;
+  const SWEEP=0.55,LO=480,HI=1180,total=cycles*SWEEP*2;
+  try{
+    const t0=ac.currentTime+0.02;
+    const o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();
+    o.type='sawtooth';
+    f.type='lowpass';f.frequency.value=2200;
+    o.frequency.setValueAtTime(LO,t0);
+    for(let i=0;i<cycles;i++){
+      const t=t0+i*SWEEP*2;
+      o.frequency.linearRampToValueAtTime(HI,t+SWEEP);
+      o.frequency.linearRampToValueAtTime(LO,t+SWEEP*2);
     }
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(0.22,t0+0.09);
+    g.gain.setValueAtTime(0.22,t0+total-0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+total);
+    o.connect(f);f.connect(g);g.connect(ac.destination);
+    o.start(t0);o.stop(t0+total+0.05);
+    trackTone(o,g);
   }catch(e){}
-  try{if(navigator.vibrate)navigator.vibrate(times>1?[220,120,220,120,220]:180);}catch(e){}
+  const pat=[];
+  for(let i=0;i<cycles;i++)pat.push(500,150);
+  buzz(pat);
+}
+const SOUND_LABEL={beeps:'beeps',siren:'siren',silent:'off'};
+/* roughly how long each one lasts, so the round can move on once it has finished */
+const SOUND_MS={beeps:1700,siren:6900,silent:1100};
+function playEndSound(){
+  stopSounds();
+  if(S.endSound==='silent'){buzz([400,150,400]);return;}
+  if(S.endSound==='siren')siren(6);
+  else beep(3);
+}
+function previewSound(){
+  stopSounds();
+  if(S.endSound==='silent'){buzz([200]);return;}
+  if(S.endSound==='siren')siren(2);
+  else beep(2);
 }
 function wakeOn(){
   try{
@@ -2029,6 +2542,10 @@ function wakeOn(){
       navigator.wakeLock.request('screen').then(function(w){T.wake=w;}).catch(function(){});
     }
   }catch(e){}
+}
+function cancelAutoNext(){
+  if(T.autoT){clearTimeout(T.autoT);T.autoT=null;}
+  T.nextRound=0;
 }
 function wakeOff(){
   try{if(T.wake){T.wake.release();T.wake=null;}}catch(e){}
@@ -2038,6 +2555,8 @@ document.addEventListener('visibilitychange',function(){
 });
 
 function timerReset(silent){
+  cancelAutoNext();
+  stopSounds();
   T.running=false;T.over=false;T.warned=false;
   T.remain=S.minutes*60000;T.endsAt=0;
   wakeOff();
@@ -2050,7 +2569,10 @@ function timerStart(){
   T.running=true;T.over=false;T.round=S.current;
   S.locked=Math.max(S.locked,S.current+1);   /* the round on court is now frozen */
   wakeOn();
-  beep(1);
+  cancelAutoNext();
+  stopSounds();                    /* nothing left ringing from the last game */
+  audioCtx();                      /* the tap that starts the game unlocks the sound */
+  if(S.endSound!=='silent')beep(1);
   paintTimer();renderDraw();
 }
 function timerPause(){
@@ -2070,9 +2592,12 @@ function paintTimer(){
   clock.classList.toggle('warn',rem>0&&rem<=60000);
   clock.classList.toggle('over',rem<=0);
   $('timer').classList.toggle('over',rem<=0&&T.running===false&&T.over);
+  $('tSession').textContent=S.sessionName||'';
   $('tRound').textContent='Round '+(S.current+1)+' of '+S.schedule.length;
   $('tStart').textContent=T.running?'Pause':(rem<=0?'Start next':'Start');
-  $('tState').textContent=T.over?'Time. Swap courts.'
+  $('tSound').textContent='Sound: '+SOUND_LABEL[S.endSound];
+  $('tState').textContent=T.over?(T.nextRound?'Time. Moving on to round '+T.nextRound+'\u2026'
+                                              :'Time. Swap courts.')
     :(T.running?'Playing':(rem===S.minutes*60000?S.minutes+' minute game':'Paused'));
   const rd=S.schedule[S.current];
   const stamp=S.current+':'+(rd?rd.courts.length+':'+rd.byes.length+':'+restingIn(rd,S.current).length:'')+
@@ -2083,7 +2608,7 @@ function paintTimer(){
     if(rd){
       rd.courts.forEach(function(ct,k){
         h+='<div class="tc"><span class="tcn">Court '+(k+1)+'</span>'+
-           '<span class="tcp">'+plain(ct.teamA)+'<i>v</i>'+plain(ct.teamB)+'</span></div>';
+           '<span class="tcp">'+plain(ct.teamA)+'<i> v </i>'+plain(ct.teamB)+'</span></div>';
       });
       const rest=restingIn(rd,S.current);
       if(rd.byes.length||rest.length)h+='<div class="tc bye"><span class="tcn">Sitting out</span>'+
@@ -2098,10 +2623,15 @@ function paintTimer(){
 function tick(){
   if(!T.running)return;
   const rem=T.endsAt-Date.now();
-  if(rem<=60000&&rem>0&&!T.warned){T.warned=true;beep(1);}
+  if(rem<=60000&&rem>0&&!T.warned){T.warned=true;if(S.endSound!=='silent')beep(1);}
   if(rem<=0&&!T.over){
     T.over=true;T.running=false;T.remain=0;
-    wakeOff();beep(3);
+    wakeOff();playEndSound();
+    /* let the siren finish, then move everyone on to the next round */
+    cancelAutoNext();
+    T.nextRound=S.current+2;
+    T.autoT=setTimeout(function(){T.autoT=null;T.nextRound=0;finishRound();},
+                       SOUND_MS[S.endSound]||1700);
   }
   paintTimer();
   if(Date.now()-lastTickSave>5000){lastTickSave=Date.now();saveNow();}
@@ -2121,6 +2651,8 @@ function openTimer(autostart){
   paintTimer();
 }
 function closeTimer(){
+  cancelAutoNext();
+  stopSounds();
   $('timer').hidden=true;
   document.body.style.overflow='';
   saveNow();
@@ -2128,6 +2660,16 @@ function closeTimer(){
 }
 $('openTimer').addEventListener('click',function(){openTimer(true);});
 $('tClose').addEventListener('click',closeTimer);
+$('tSound').addEventListener('click',function(){
+  cancelAutoNext();
+  const order=['beeps','siren','silent'];
+  S.endSound=order[(order.indexOf(S.endSound)+1)%order.length];
+  soundVal=S.endSound;
+  setSeg('soundSeg',S.endSound);
+  previewSound();
+  paintTimer();
+  saveSoon();
+});
 $('tStart').addEventListener('click',function(){
   if(T.running)timerPause();
   else{
@@ -2138,7 +2680,8 @@ $('tStart').addEventListener('click',function(){
 $('tReset').addEventListener('click',function(){
   T.round=S.current;timerReset();
 });
-$('tNext').addEventListener('click',function(){
+function finishRound(){
+  cancelAutoNext();
   if(S.current<S.schedule.length-1){
     S.locked=Math.max(S.locked,S.current+1);
     S.current++;
@@ -2154,7 +2697,8 @@ $('tNext').addEventListener('click',function(){
   timerReset(true);
   closeTimer();                    /* back to the courts for the next round */
   window.scrollTo(0,0);
-});
+}
+$('tNext').addEventListener('click',finishRound);
 
 /* ============================================================
    11. START UP — offer to resume, and register the app manifest
@@ -2166,6 +2710,7 @@ $('tNext').addEventListener('click',function(){
   const round=Math.min((d.current||0)+1,d.schedule.length);
   const when=d.ts?new Date(d.ts).toLocaleString():'';
   $('resumeInfo').textContent=
+    ((d.sessionName?d.sessionName+' \u00b7 ':'')+(d.sessionWhen?whenText(d.sessionWhen)+' \u00b7 ':''))+
     d.players.length+' players \u00b7 round '+round+' of '+d.schedule.length+
     ((d.pairs&&d.pairs.length)?' \u00b7 '+d.pairs.length+' training pair'+(d.pairs.length===1?'':'s'):'')+
     (when?' \u00b7 saved '+when:'');
@@ -2175,12 +2720,18 @@ $('tNext').addEventListener('click',function(){
               rating:(typeof p.rating==='number'?p.rating:null),
               restUntil:(typeof p.restUntil==='number'?p.restUntil:null)};
     });
+    S.sessionName=d.sessionName||'';S.sessionWhen=d.sessionWhen||'';
     S.courts=d.courts;S.perCourt=d.perCourt;S.rounds=d.rounds||d.schedule.length;
     S.mix=d.mix||'social';S.minutes=d.minutes||12;
+    S.changeover=(typeof d.changeover==='number')?d.changeover:2;
+    S.endSound=SOUND_LABEL[d.endSound]?d.endSound:'beeps';
+    soundVal=S.endSound;
     S.schedule=d.schedule;
     S.current=Math.min(d.current||0,d.schedule.length-1);
     S.locked=Math.min(typeof d.locked==='number'?d.locked:0,d.schedule.length);
     S.pairs=Array.isArray(d.pairs)?d.pairs:[];
+    S.avoid=Array.isArray(d.avoid)?d.avoid:[];
+    S.pins=(d.pins&&typeof d.pins.round==='number'&&d.pins.map)?d.pins:null;
     S.view='round';
     mixVal=S.mix;formatVal=S.perCourt;
     T.remain=S.minutes*60000;T.round=S.current;
@@ -2229,6 +2780,7 @@ document.addEventListener('keydown',function(e){
   if(e.key===' '){e.preventDefault();$('tStart').click();}
 });
 
+$('sessionWhen').value=nowForInput();
 updatePCount();
 computeTimeRounds();
 $('mixHint').textContent=MIXTEXT.social;
