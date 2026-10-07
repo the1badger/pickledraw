@@ -7,7 +7,7 @@
 <title>Pickle Draw</title>
 <!-- Bump this whenever you publish a new copy. The installed app compares it
      with the one it finds at its own web address to spot an update. -->
-<meta name="app-version" content="2.3.0">
+<meta name="app-version" content="2.3.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -3008,12 +3008,39 @@ $('statsHead').addEventListener('click',function(){
 $('pairBtn').addEventListener('click',function(){
   pairMode=!pairMode;pairPick=-1;renderRoster();
 });
+/* A latecomer goes into the list in the right place alphabetically, not on the
+   end. Everything else refers to a player by their position in that list, so
+   every one of those references has to move up as well. */
+function insertPlayerSorted(p){
+  let at=S.players.length;
+  for(let i=0;i<S.players.length;i++){
+    if(byName(p.name,S.players[i].name)<0){at=i;break;}
+  }
+  S.players.splice(at,0,p);
+  const shift=function(i){return i>=at?i+1:i;};
+  S.schedule.forEach(function(rd){
+    rd.courts.forEach(function(ct){
+      ct.teamA=ct.teamA.map(shift);
+      ct.teamB=ct.teamB.map(shift);
+    });
+    rd.byes=rd.byes.map(shift);
+  });
+  S.pairs=S.pairs.map(function(pr){return [shift(pr[0]),shift(pr[1])];});
+  S.avoid=S.avoid.map(function(pr){return [shift(pr[0]),shift(pr[1])];});
+  if(S.pins&&S.pins.map){
+    const m={};
+    Object.keys(S.pins.map).forEach(function(k){m[shift(+k)]=S.pins.map[k];});
+    S.pins.map=m;
+  }
+  if(pairPick>-1)pairPick=shift(pairPick);
+  return at;
+}
 $('addBtn').addEventListener('click',function(){
   const v=$('addName').value.trim();
   if(!v)return;
   const p=parseEntry(v);
   p.name=uniqueAgainstRoster(p.name);
-  S.players.push(p);
+  insertPlayerSorted(p);
   $('addName').value='';
   rebuildAndTell();
   toast(p.name+' added and in the next round');
