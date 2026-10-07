@@ -7,7 +7,7 @@
 <title>Pickle Draw</title>
 <!-- Bump this whenever you publish a new copy. The installed app compares it
      with the one it finds at its own web address to spot an update. -->
-<meta name="app-version" content="2.2.0">
+<meta name="app-version" content="2.2.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -671,6 +671,9 @@
                 to confirm. If the list is too long for one screenshot, take as many as you
                 need and <b>select them all at once</b> &mdash; they are read in one go, and
                 anyone appearing on more than one is flagged so they cannot go in twice.</li>
+              <li>Anything in BLOCK CAPITALS is taken to be a label rather than a person, so
+                it goes into <b>Other text that was found</b> for you to check. Tick it if it
+                really is somebody.</li>
               <li><b>Example list</b> puts thirteen made-up players in, for a practice run.</li>
             </ul>
           </li>
@@ -1474,9 +1477,9 @@ function cleanLine(raw){
    "Check-in", "CHECK IN" and "Checkin" are all the same thing.
    Add a phrase to this list to have it ignored too.
    --------------------------------------------------------------- */
-const OCR_DROP=['name','new attendee','check in','checked in','non-member',
+const OCR_DROP=['name','new attendee','check in','checked in','non-member','mon','tue','wed','Thu','fri','sat','sun','opensports','NONMEMGER','HOWATTENDGE','Tota','Total','Registratior','CY Heck','ToL','CHECKAN','Jemum Sp','Lad',
   'bbpc member paddle','bbpc member','bprc member','brpc member','brrc member',
-  'registration option','registration options','no shows','no show','total','totals',
+  'registration option','registration options','no shows','no show','total','totals','Oct','Nov','Dec','Toma',
   'display settings','attendee waitlist','attendee list','waitlist','search by'];
 const OCR_DROP_RE=OCR_DROP.map(function(phrase){
   const body=phrase.split(/[^a-zA-Z0-9]+/).filter(Boolean).join('[^a-zA-Z0-9]*');
@@ -1512,6 +1515,10 @@ function looksLikeName(t){
   if(/[0-9]/.test(core))return false;
   if(/\S+@\S+|https?:|www\.|\.(com|org|net|au|nz|uk|io|co|info)$/i.test(core))return false;
   if(OCR_CHROME.test(core))return false;
+  /* A line entirely in capitals is a label on the page, not a person. Real entries
+     come back as "Al Percival"; the furniture comes back as "BEPC MEMBER PADDLE".
+     A name with only its surname shouted — "Troy FRASER" — is mixed, so it stays. */
+  if(RE_LETTER.test(core)&&core===core.toUpperCase())return false;
   const words=core.split(' ');
   if(words.length>4)return false;
   if(words.length===1&&(core.length<=2||core===core.toUpperCase()))return false;
