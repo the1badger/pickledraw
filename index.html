@@ -7,7 +7,7 @@
 <title>Pickle Draw</title>
 <!-- Bump this whenever you publish a new copy. The installed app compares it
      with the one it finds at its own web address to spot an update. -->
-<meta name="app-version" content="2.0.2">
+<meta name="app-version" content="2.2.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -188,8 +188,12 @@
   .badge.next{border-color:var(--teal);color:var(--teal);background:rgba(19,81,75,.08)}
   .badge.frozen{border-color:var(--teal);background:var(--teal);color:#fff}
 
-  .timerbtn{width:100%;padding:15px;font-size:1.05rem;margin-bottom:16px;
+  .startrow{display:flex;gap:8px;align-items:stretch;margin-bottom:9px}
+  .startrow .navbtn{height:auto;align-self:stretch;font-size:1.35rem}
+  .timerbtn{flex:1;width:100%;padding:15px;font-size:1.05rem;
     font-family:var(--disp);font-weight:800;letter-spacing:-.01em}
+  .callbtn{width:100%;padding:11px;margin-bottom:16px;font-weight:700}
+  .callbtn.on{background:var(--clay);color:#fff}
 
   /* ---------- court cards ---------- */
   .courts{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(238px,1fr))}
@@ -567,7 +571,14 @@
         <span class="badge" id="roundBadge"></span>
         <button class="btn sm" id="lockBtn"></button>
       </div>
-      <button class="btn dark timerbtn noprint" id="openTimer">Start a 12 minute game</button>
+      <div class="startrow noprint">
+        <button class="btn navbtn" id="minusMin" aria-label="Make the next game a minute shorter"
+                title="A minute shorter">&minus;</button>
+        <button class="btn dark timerbtn" id="openTimer">Start a 12 minute game</button>
+        <button class="btn navbtn" id="plusMin" aria-label="Make the next game a minute longer"
+                title="A minute longer">+</button>
+      </div>
+      <button class="btn callbtn noprint" id="callBtn">Call players in</button>
       <div id="roundBody"></div>
     </div>
 
@@ -693,6 +704,12 @@
         <ol>
           <li>The screen shows the current round: each court, with team A against team B, and
             anyone sitting out underneath.</li>
+          <li>The <b>&minus;</b> and <b>+</b> either side of the start button change the length of
+            the next game by a minute, without going back to the setup &mdash; handy when the last
+            game of the morning needs to be a bit longer or shorter.</li>
+          <li><b>Call players in</b> sounds the siren for about ten seconds, to bring everyone back
+            to the courts. Tap it again to stop it early. It works whatever the time-up sound is
+            set to.</li>
           <li>Tap <b>Start a 12 minute game</b> (or whatever you set). The screen goes dark with a
             big countdown, the session name, and the pairings for all courts. It keeps the
             screen awake, beeps once at a minute to go, and sounds at the end.</li>
@@ -724,6 +741,9 @@
         <ul>
           <li>On the round view, <b>tap a court</b> to put the score in. Two boxes, one for each
             side. Tap it again to change it, or <b>Remove</b> to take it out.</li>
+          <li>When the game timer runs out it comes back to the round just played so you can
+            put the scores in, rather than jumping ahead. Tap <b>&rsaquo;</b> when you are ready
+            for the next round. In a social session it moves on by itself, as before.</li>
           <li>Putting a score in marks that round as played, so it will not be redrawn.</li>
           <li>The scores appear on the court cards, with a dot against the winning side.</li>
           <li><b>How good is this draw</b> then opens with a <b>ladder</b> &mdash; played, won,
@@ -2364,6 +2384,8 @@ function renderRound(){
   $('openTimer').textContent=T.running&&T.round===S.current
     ? 'Back to the running timer'
     : 'Start a '+S.minutes+' minute game';
+  $('minusMin').disabled=T.running||S.minutes<=1;
+  $('plusMin').disabled=T.running||S.minutes>=60;
   const st=roundStatus(S.current);
   const badge=$('roundBadge');
   const frozen=S.current<S.locked;
@@ -2757,7 +2779,12 @@ function openScore(r,c){
     S.locked=Math.max(S.locked,r+1);     /* a round with a score in it has been played */
     if(!S.statsOpen){S.statsOpen=true;}
     renderDraw();
-    toast('Court '+(c+1)+': '+res.a+'\u2013'+res.b+' recorded');
+    const rd=S.schedule[r];
+    const missing=rd.courts.filter(function(x,k){return !getScore(r,k);}).length;
+    if(!missing&&r===S.current&&r<S.schedule.length-1)
+      toast('Every score is in \u2014 tap \u203a for round '+(r+2));
+    else
+      toast('Court '+(c+1)+': '+res.a+'\u2013'+res.b+' recorded');
   });
 }
 
@@ -2939,7 +2966,7 @@ $('addName').addEventListener('keydown',function(e){
    10. GAME TIMER
    ============================================================ */
 const T={running:false,endsAt:0,remain:12*60000,round:null,warned:false,over:false,
-         wake:null,iv:null,ac:null,tones:[],autoT:null,nextRound:0};
+         wake:null,iv:null,ac:null,tones:[],autoT:null,nextRound:0,pending:0};
 
 function fmt(ms){
   const neg=ms<0;
@@ -3053,7 +3080,7 @@ function wakeOn(){
 }
 function cancelAutoNext(){
   if(T.autoT){clearTimeout(T.autoT);T.autoT=null;}
-  T.nextRound=0;
+  T.nextRound=0;T.pending=0;
 }
 function wakeOff(){
   try{if(T.wake){T.wake.release();T.wake=null;}}catch(e){}
@@ -3104,8 +3131,10 @@ function paintTimer(){
   $('tRound').textContent='Round '+(S.current+1)+' of '+S.schedule.length;
   $('tStart').textContent=T.running?'Pause':(rem<=0?'Start next':'Start');
   $('tSound').textContent='Sound: '+SOUND_LABEL[S.endSound];
-  $('tState').textContent=T.over?(T.nextRound?'Time. Moving on to round '+T.nextRound+'\u2026'
-                                              :'Time. Swap courts.')
+  $('tNext').textContent=isComp()?'Done \u2014 enter scores':'Finish round';
+  $('tState').textContent=T.over?(T.pending==='next'?'Time. Moving on to round '+T.nextRound+'\u2026'
+                                 :(T.pending==='scores'?'Time. Back to the courts for the scores\u2026'
+                                 :'Time. Swap courts.'))
     :(T.running?'Playing':(rem===S.minutes*60000?S.minutes+' minute game':'Paused'));
   const rd=S.schedule[S.current];
   const stamp=S.current+':'+(rd?rd.courts.length+':'+rd.byes.length+':'+restingIn(rd,S.current).length:'')+
@@ -3137,8 +3166,9 @@ function tick(){
     wakeOff();playEndSound();
     /* let the siren finish, then move everyone on to the next round */
     cancelAutoNext();
-    T.nextRound=S.current+2;
-    T.autoT=setTimeout(function(){T.autoT=null;T.nextRound=0;finishRound();},
+    if(isComp()){T.pending='scores';}
+    else{T.pending='next';T.nextRound=S.current+2;}
+    T.autoT=setTimeout(function(){T.autoT=null;T.nextRound=0;T.pending=0;endOfGame();},
                        SOUND_MS[S.endSound]||1700);
   }
   paintTimer();
@@ -3167,6 +3197,36 @@ function closeTimer(){
   renderDraw();
 }
 $('openTimer').addEventListener('click',function(){openTimer(true);});
+
+/* the last game of a morning is often a bit longer or shorter than the rest */
+function nudgeMinutes(delta){
+  if(T.running)return;
+  const v=Math.max(1,Math.min(60,S.minutes+delta));
+  if(v===S.minutes)return;
+  S.minutes=v;
+  timerReset(true);              /* the clock takes the new length */
+  renderDraw();
+  toast('Next game: '+S.minutes+' minutes');
+}
+$('minusMin').addEventListener('click',function(){nudgeMinutes(-1);});
+$('plusMin').addEventListener('click',function(){nudgeMinutes(1);});
+
+/* a siren to bring everyone back to the courts, nothing to do with the timer */
+const CALL_CYCLES=9;             /* 0.55s up, 0.55s down, so about ten seconds */
+let callOn=false,callT=null;
+function setCallLabel(){
+  $('callBtn').textContent=callOn?'Stop the siren':'Call players in';
+  $('callBtn').classList.toggle('on',callOn);
+}
+$('callBtn').addEventListener('click',function(){
+  clearTimeout(callT);
+  if(callOn){stopSounds();callOn=false;setCallLabel();return;}
+  stopSounds();
+  audioCtx();
+  siren(CALL_CYCLES);
+  callOn=true;setCallLabel();
+  callT=setTimeout(function(){callOn=false;setCallLabel();},CALL_CYCLES*1100+200);
+});
 $('tClose').addEventListener('click',closeTimer);
 $('tSound').addEventListener('click',function(){
   cancelAutoNext();
@@ -3188,6 +3248,18 @@ $('tStart').addEventListener('click',function(){
 $('tReset').addEventListener('click',function(){
   T.round=S.current;timerReset();
 });
+/* A social session rolls straight on. A competitive one goes back to the round
+   just played, so the scores can be put in before moving. */
+function endOfGame(){
+  cancelAutoNext();
+  if(!isComp()){finishRound();return;}
+  S.locked=Math.max(S.locked,S.current+1);   /* that round has been played */
+  T.round=S.current;
+  timerReset(true);
+  closeTimer();
+  window.scrollTo(0,0);
+  toast('Time. Tap each court to put the score in, then \u203a for the next round');
+}
 function finishRound(){
   cancelAutoNext();
   if(S.current<S.schedule.length-1){
@@ -3206,7 +3278,7 @@ function finishRound(){
   closeTimer();                    /* back to the courts for the next round */
   window.scrollTo(0,0);
 }
-$('tNext').addEventListener('click',finishRound);
+$('tNext').addEventListener('click',endOfGame);
 
 /* ============================================================
    11. START UP — offer to resume, and register the app manifest
