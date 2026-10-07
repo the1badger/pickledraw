@@ -7,7 +7,7 @@
 <title>Pickle Draw</title>
 <!-- Bump this whenever you publish a new copy. The installed app compares it
      with the one it finds at its own web address to spot an update. -->
-<meta name="app-version" content="2.2.3">
+<meta name="app-version" content="2.3.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pickle Draw">
@@ -139,6 +139,8 @@
     text-decoration:underline;cursor:pointer;font-size:.85rem;padding:4px 0 0}
   .hint{font-size:.82rem;color:var(--ink-soft);margin-top:-10px;margin-bottom:18px}
   .shotrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 14px}
+  .sortbit{display:flex;align-items:center;gap:8px}
+  .sortbit .lbl{font-weight:600;font-size:.84rem}
   .shotstate{font-size:.86rem;color:var(--teal);font-weight:600;margin:0 0 6px;min-height:1.2em}
   .shotstate.bad{color:var(--clay)}
   .shotbar{height:8px;background:rgba(28,27,22,.12);border-radius:5px;overflow:hidden;margin-bottom:8px}
@@ -465,6 +467,13 @@
         <button class="btn sm" id="pasteBtn" type="button">Paste a list</button>
         <button class="btn sm" id="loadExample" type="button">Example list</button>
         <input type="file" id="shotFile" accept="image/*" multiple hidden>
+        <span class="sortbit">
+          <span class="lbl">Sort by</span>
+          <div class="seg" id="sortSeg">
+            <button type="button" data-v="first" class="on">First name</button>
+            <button type="button" data-v="last">Last name</button>
+          </div>
+        </span>
       </div>
       <div class="shotstate" id="shotState"></div>
       <div class="shotbar" id="shotBar" hidden><span id="shotBarFill"></span></div>
@@ -1139,7 +1148,7 @@ function saveNow(){
   if($('draw').hidden)return;
   const data=JSON.stringify({
     v:2,sessionName:S.sessionName,sessionWhen:S.sessionWhen,
-    sessionType:S.sessionType,scores:S.scores,players:S.players,courts:S.courts,perCourt:S.perCourt,rounds:S.rounds,
+    sessionType:S.sessionType,scores:S.scores,sortMode:sortMode,players:S.players,courts:S.courts,perCourt:S.perCourt,rounds:S.rounds,
     mix:S.mix,minutes:S.minutes,changeover:S.changeover,endSound:S.endSound,schedule:S.schedule,current:S.current,
     locked:S.locked,pairs:S.pairs,pins:S.pins,avoid:S.avoid,
     timer:{running:T.running,endsAt:T.endsAt,remain:T.remain,open:!$('timer').hidden},
@@ -1246,6 +1255,37 @@ function parseEntry(s){
   }
   return {name:s,rating:null,active:true,restUntil:null};
 }
+/* ---------------------------------------------------------------
+   Putting names in order. "First name" is plain alphabetical on the
+   whole name. "Last name" sorts on the final word, then the rest.
+   Somebody with only one name is sorted on that, either way.
+   --------------------------------------------------------------- */
+let sortMode='first';
+function nameSortKey(n){
+  const t=String(n||'').trim().split(/\s+/).filter(Boolean);
+  if(!t.length)return '';
+  if(sortMode==='last'&&t.length>1)
+    return t[t.length-1]+' '+t.slice(0,-1).join(' ');
+  return t.join(' ');
+}
+function byName(a,b){
+  const x=nameSortKey(a),y=nameSortKey(b);
+  try{return x.localeCompare(y,undefined,{sensitivity:'base',numeric:true});}
+  catch(e){return x.toLowerCase()<y.toLowerCase()?-1:(x===y?0:1);}
+}
+function sortNames(list){
+  return list.slice().sort(byName);
+}
+/* the box holds whole lines, which may carry a level, so sort on the name part */
+function sortPlayersBox(){
+  const lines=splitEntries($('players').value);
+  if(lines.length<2)return;
+  const rows=lines.map(function(s){return {line:s,name:parseEntry(s).name};});
+  rows.sort(function(x,y){return byName(x.name,y.name);});
+  $('players').value=rows.map(function(r){return r.line;}).join('\n');
+  updatePCount();
+}
+
 function uniquify(list){
   const seen=new Map();let clashes=0;
   for(const p of list){
@@ -1702,7 +1742,7 @@ function pickNamesBox(good,junk){
     const already=splitEntries($('players').value).map(function(s){return parseEntry(s).name;});
     const kept=[];
     let dups=0;
-    good.forEach(function(t){
+    sortNames(good).forEach(function(t){
       const hit=findDup(t,already.concat(kept));
       if(hit){
         dups++;
@@ -1888,6 +1928,7 @@ function addNamesToBox(names){
   if(!names.length){shotState('Nothing new to add \u2014 they were all on the list already');return;}
   const cur=box.value.replace(/\s+$/,'');
   box.value=(cur?cur+'\n':'')+names.join('\n');
+  sortPlayersBox();
   updatePCount();
   shotState('Added '+names.length+' name'+(names.length===1?'':'s'));
 }
@@ -2032,6 +2073,7 @@ function insertIntoPlayers(textToAdd){
   box.value=before+lead+textToAdd+trail+after;
   const pos=(before+lead+textToAdd).length;
   try{box.setSelectionRange(pos,pos);}catch(e){}
+  sortPlayersBox();
   updatePCount();
 }
 $('players').addEventListener('paste',function(e){
@@ -2070,6 +2112,13 @@ function computeTimeRounds(){
   return r;
 }
 $('players').addEventListener('input',updatePCount);
+$('sortSeg').addEventListener('click',function(e){
+  const b=e.target.closest('button');if(!b)return;
+  sortMode=b.dataset.v;
+  Array.prototype.forEach.call($('sortSeg').children,function(c){c.classList.toggle('on',c===b);});
+  sortPlayersBox();
+  toast(sortMode==='last'?'Sorted by last name':'Sorted by first name');
+});
 $('totalMin').addEventListener('input',computeTimeRounds);
 $('perMin').addEventListener('input',computeTimeRounds);
 $('changeMin').addEventListener('input',computeTimeRounds);
@@ -2173,8 +2222,10 @@ $('roundModeSeg').addEventListener('click',function(e){
   computeTimeRounds();
 });
 $('loadExample').addEventListener('click',function(){
+  /* the example list is written out below, then put in order like any other */
   $('players').value=['Alex 3.0','Bri 3.5','Cam 2.5','Dana 4.0','Eli 3.0','Finn 3.5',
     'Gia 2.5','Hari 4.5','Ivy 3.0','Jules 3.5','Kai 2.0','Lena 4.0','Mara 3.0'].join('\n');
+  sortPlayersBox();
   updatePCount();
 });
 
@@ -2203,6 +2254,7 @@ $('generateBtn').addEventListener('click',function(){
     return fail('Need at least '+perCourt+' players for '+(perCourt===4?'doubles':'singles')+
       '. There are '+entries.length+'.');
 
+  entries.sort(function(x,y){return byName(x.name,y.name);});
   const clashes=uniquify(entries);
 
   /* keep any training pairs whose names survived the edit */
@@ -2911,6 +2963,7 @@ function newSession(){
   $('changeMin').value='2';
   setSeg('formatSeg',4);setSeg('mixSeg','social');setSeg('roundModeSeg','time');
   setSeg('soundSeg','beeps');setSeg('typeSeg','social');
+  sortMode='first';setSeg('sortSeg','first');
   $('countMode').style.display='none';
   $('timeMode').style.display='';
   $('setupErr').style.display='none';
@@ -3309,6 +3362,7 @@ $('tNext').addEventListener('click',endOfGame);
     });
     S.sessionName=d.sessionName||'';S.sessionWhen=d.sessionWhen||'';
     S.sessionType=d.sessionType==='competitive'?'competitive':'social';
+    sortMode=d.sortMode==='last'?'last':'first';setSeg('sortSeg',sortMode);
     S.scores=(d.scores&&typeof d.scores==='object')?d.scores:{};
     typeVal=S.sessionType;setSeg('typeSeg',S.sessionType);
     S.courts=d.courts;S.perCourt=d.perCourt;S.rounds=d.rounds||d.schedule.length;
